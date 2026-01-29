@@ -1,60 +1,66 @@
 /**
- * Event Bus - шина событий для event-driven архитектуры
- * Позволяет системам общаться без прямых зависимостей
+ * EventBus - Pub/Sub pattern for game events
+ * Allows decoupled communication between systems
  */
 export class EventBus {
     constructor() {
-        this.listeners = new Map();
+        this.events = new Map();
     }
 
     /**
-     * Подписка на событие
+     * Subscribe to an event
+     * @param {string} event - Event name
+     * @param {Function} callback - Callback function
+     * @returns {Function} Unsubscribe function
      */
-    on(event, callback, context = null) {
-        if (!this.listeners.has(event)) {
-            this.listeners.set(event, []);
+    on(event, callback) {
+        if (!this.events.has(event)) {
+            this.events.set(event, []);
         }
-        this.listeners.get(event).push({ callback, context });
+        this.events.get(event).push(callback);
+        return () => this.off(event, callback);
     }
 
     /**
-     * Отписка от события
+     * Unsubscribe from an event
      */
     off(event, callback) {
-        if (!this.listeners.has(event)) return;
-        const callbacks = this.listeners.get(event);
-        const index = callbacks.findIndex(item => item.callback === callback);
+        if (!this.events.has(event)) return;
+        
+        const callbacks = this.events.get(event);
+        const index = callbacks.indexOf(callback);
         if (index !== -1) {
             callbacks.splice(index, 1);
         }
     }
 
     /**
-     * Испускание события
+     * Emit an event
      */
-    emit(event, ...args) {
-        if (!this.listeners.has(event)) return;
-        const callbacks = this.listeners.get(event);
-        for (const { callback, context } of callbacks) {
-            callback.apply(context, args);
-        }
+    emit(event, data) {
+        if (!this.events.has(event)) return;
+        
+        this.events.get(event).forEach(callback => {
+            try {
+                callback(data);
+            } catch (error) {
+                console.error(`Error in event handler for ${event}:`, error);
+            }
+        });
     }
 
     /**
-     * Одноразовая подписка
+     * Subscribe to event once
      */
-    once(event, callback, context = null) {
-        const wrappedCallback = (...args) => {
-            callback.apply(context, args);
+    once(event, callback) {
+        const wrappedCallback = (data) => {
+            callback(data);
             this.off(event, wrappedCallback);
         };
-        this.on(event, wrappedCallback, context);
+        this.on(event, wrappedCallback);
     }
 
-    /**
-     * Очистка всех событий
-     */
     clear() {
-        this.listeners.clear();
+        this.events.clear();
     }
 }

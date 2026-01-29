@@ -1,43 +1,52 @@
-/**
- * Enemy - класс врага
- */
 import { Character } from './Character.js';
+import { ENEMY_STATS } from '../config/enemyData.js';
 
+/**
+ * Enemy - Enemy character class
+ */
 export class Enemy extends Character {
-    constructor(config = {}) {
-        super(config);
+    constructor(name, config = {}) {
+        // Get stats from database or use defaults
+        const stats = ENEMY_STATS[name] || config;
         
-        this.rewards = {
-            xp: config.xp || 30,
-            gold: config.gold || 15
-        };
+        super({
+            name: name,
+            maxHp: stats.hp || 30,
+            hp: stats.hp || 30,
+            maxMp: 0,
+            mp: 0,
+            attack: stats.attack || 10,
+            defense: stats.defense || 2
+        });
         
-        this.aiType = config.aiType || 'aggressive';
+        this.xp = stats.xp || 20;
+        this.gold = stats.gold || 10;
     }
 
-    /**
-     * Получение наград
-     */
     getRewards() {
-        return { ...this.rewards };
+        return {
+            xp: this.xp,
+            gold: this.gold
+        };
     }
 
-    /**
-     * Расчет урона
-     */
-    calculateDamage() {
-        const variance = Math.floor(Math.random() * 5);
-        return Math.max(1, this.stats.attack - variance);
-    }
-
-    /**
-     * Сериализация
-     */
     serialize() {
         return {
             ...super.serialize(),
-            rewards: { ...this.rewards },
-            aiType: this.aiType
+            xp: this.xp,
+            gold: this.gold
         };
+    }
+
+    static fromSerialized(data) {
+        const enemy = new Enemy(data.name, {
+            hp: data.maxHp,
+            attack: data.attack,
+            defense: data.defense,
+            xp: data.xp,
+            gold: data.gold
+        });
+        enemy.hp = data.hp;
+        return enemy;
     }
 }

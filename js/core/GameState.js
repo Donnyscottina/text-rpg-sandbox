@@ -1,125 +1,119 @@
-import { EventEmitter } from './EventEmitter.js';
+import { Player } from '../entities/Player.js';
 
 /**
- * GameState - Singleton паттерн для управления состоянием игры
+ * GameState - Centralized state management
+ * Single source of truth for game data
  */
-export class GameState extends EventEmitter {
-    static instance = null;
-
+export class GameState {
     constructor() {
-        if (GameState.instance) {
-            return GameState.instance;
-        }
-        super();
-        this.initializeState();
-        GameState.instance = this;
-    }
-
-    static getInstance() {
-        if (!GameState.instance) {
-            GameState.instance = new GameState();
-        }
-        return GameState.instance;
-    }
-
-    initializeState() {
-        this.player = {
-            name: 'Герой',
-            hp: 100,
-            maxHp: 100,
-            mp: 50,
-            maxMp: 50,
-            gold: 100,
-            level: 1,
-            xp: 0,
-            xpNeeded: 100,
-            attack: 10,
-            defense: 5,
-            x: 5,
-            y: 5,
-            location: 'town_square'
-        };
-
-        this.inventory = [
-            { name: 'Зелье здоровья', type: 'potion', effect: 'heal', value: 30, count: 3 },
-            { name: 'Хлеб', type: 'food', effect: 'heal', value: 10, count: 5 }
-        ];
-
-        this.equipment = {
-            weapon: null,
-            armor: null,
-            helmet: null
-        };
-
+        this.player = null;
+        this.currentLocation = null;
+        this.worldMap = null;
         this.combat = null;
         this.commandHistory = [];
         this.historyIndex = -1;
     }
 
-    updatePlayer(updates) {
-        Object.assign(this.player, updates);
-        this.emit('player:updated', this.player);
+    initPlayer(config = {}) {
+        this.player = new Player({
+            name: config.name || 'Герой',
+            hp: config.hp || 100,
+            maxHp: config.maxHp || 100,
+            mp: config.mp || 50,
+            maxMp: config.maxMp || 50,
+            gold: config.gold || 100,
+            level: config.level || 1,
+            xp: config.xp || 0,
+            attack: config.attack || 10,
+            defense: config.defense || 5
+        });
     }
 
-    addToInventory(item) {
-        const existing = this.inventory.find(i => i.name === item.name);
-        if (existing && item.count) {
-            existing.count += item.count;
-        } else {
-            this.inventory.push(item);
+    getPlayer() {
+        return this.player;
+    }
+
+    getCurrentLocation() {
+        return this.currentLocation;
+    }
+
+    setLocation(location) {
+        this.currentLocation = location;
+        if (this.player && location.x !== undefined && location.y !== undefined) {
+            this.player.setPosition(location.x, location.y);
         }
-        this.emit('inventory:updated', this.inventory);
     }
 
-    removeFromInventory(itemName) {
-        const index = this.inventory.findIndex(i => i.name === itemName);
-        if (index > -1) {
-            this.inventory.splice(index, 1);
-            this.emit('inventory:updated', this.inventory);
-        }
+    setWorldMap(worldMap) {
+        this.worldMap = worldMap;
     }
 
-    startCombat(enemy, originalName) {
-        this.combat = { enemy, originalName };
-        this.emit('combat:started', this.combat);
+    getWorldMap() {
+        return this.worldMap;
+    }
+
+    isInCombat() {
+        return this.combat !== null;
+    }
+
+    setCombat(combat) {
+        this.combat = combat;
+    }
+
+    getCombat() {
+        return this.combat;
     }
 
     endCombat() {
         this.combat = null;
-        this.emit('combat:ended');
     }
 
-    save() {
-        const saveData = {
-            player: this.player,
-            inventory: this.inventory,
-            equipment: this.equipment,
+    addToHistory(command) {
+        if (this.commandHistory[this.commandHistory.length - 1] !== command) {
+            this.commandHistory.push(command);
+        }
+        this.historyIndex = this.commandHistory.length;
+    }
+
+    getPreviousCommand() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            return this.commandHistory[this.historyIndex];
+        }
+        return null;
+    }
+
+    getNextCommand() {
+        if (this.historyIndex < this.commandHistory.length - 1) {
+            this.historyIndex++;
+            return this.commandHistory[this.historyIndex];
+        }
+        this.historyIndex = this.commandHistory.length;
+        return '';
+    }
+
+    serialize() {
+        return {
+            player: this.player?.serialize(),
+            locationId: this.currentLocation?.id,
+            combat: this.combat ? {
+                enemy: this.combat.enemy.serialize(),
+                originalName: this.combat.originalName
+            } : null,
             timestamp: Date.now()
         };
-        localStorage.setItem('rpg_save', JSON.stringify(saveData));
-        return true;
     }
 
-    load() {
-        const saveData = localStorage.getItem('rpg_save');
-        if (!saveData) return false;
-        
-        try {
-            const data = JSON.parse(saveData);
-            this.player = data.player;
-            this.inventory = data.inventory;
-            this.equipment = data.equipment;
-            this.emit('game:loaded');
-            return true;
-        } catch (error) {
-            console.error('Error loading save:', error);
-            return false;
+    deserialize(data) {
+        if (data.player) {
+            this.player = Player.fromSerialized(data.player);
         }
-    }
-
-    reset() {
-        localStorage.removeItem('rpg_save');
-        this.initializeState();
-        this.emit('game:reset');
+        if (data.locationId && this.worldMap) {
+            const location = this.worldMap.getLocation(data.locationId);
+            if (location) {
+                this.setLocation(location);
+            }
+        }
+        // Combat will be restored separately if needed
     }
 }
