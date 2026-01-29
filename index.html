@@ -9,7 +9,15 @@
 <body>
     <div class="game-container">
         <div class="header">
-            <h1>⚔️ Text RPG Sandbox</h1>
+            <div class="header-top">
+                <h1>⚔️ Text RPG Sandbox</h1>
+                <div class="header-actions">
+                    <button class="mini-btn" id="btnSave" title="Сохранить">Save</button>
+                    <button class="mini-btn" id="btnLoad" title="Загрузить">Load</button>
+                    <button class="mini-btn danger" id="btnReset" title="Сбросить прогресс">Reset</button>
+                </div>
+            </div>
+
             <div class="stats-bar">
                 <div class="stat">❤️ HP: <span id="hp">100</span>/<span id="maxHp">100</span></div>
                 <div class="stat">💧 MP: <span id="mp">50</span>/<span id="maxMp">50</span></div>
@@ -30,10 +38,11 @@
                         <div><span class="legend-dungeon">▲</span> Подземелье</div>
                         <div><span class="legend-forest">♣</span> Лес</div>
                     </div>
+                    <div class="hint">Клик по карте: перейти в доступную локацию рядом.</div>
                 </div>
 
                 <div class="inventory-container">
-                    <h3>🎲 Инвентарь</h3>
+                    <h3>🎒 Инвентарь</h3>
                     <div id="inventory"></div>
                 </div>
 
@@ -48,22 +57,30 @@
             </div>
 
             <div class="center-panel">
-                <div class="output-container" id="output">
-                    <div class="message system">Добро пожаловать в мир Text RPG Sandbox!</div>
-                    <div class="message system">Это текстовая RPG-песочница в стиле классических MUD игр.</div>
-                    <div class="message system">Вводите команды в поле ниже. Наберите 'help' для списка команд.</div>
+                <div class="output-container" id="output"></div>
+
+                <div class="quick-actions">
+                    <div class="quick-actions-head">
+                        <div class="quick-title">⚡ Доступные команды</div>
+                        <label class="toggle">
+                            <input type="checkbox" id="toggleClickMode" checked>
+                            <span>Клик = выполнить</span>
+                        </label>
+                    </div>
+                    <div id="quickActions"></div>
                 </div>
 
                 <div class="input-container">
-                    <input type="text" id="commandInput" placeholder="Введите команду..." autocomplete="off">
+                    <input type="text" id="commandInput" placeholder="Введите команду... (Tab автодополнение)" autocomplete="off">
                     <button id="sendBtn">Отправить</button>
                 </div>
+                <div class="hint">Подсказки: стрелки/WSAD — ходьба (если поле ввода пустое), ↑/↓ — история команд.</div>
             </div>
 
             <div class="right-panel">
                 <div class="location-info">
                     <h3>📍 Текущая локация</h3>
-                    <div id="locationName" class="location-name">Центральная площадь</div>
+                    <div id="locationName" class="location-name">—</div>
                     <div id="locationDesc" class="location-desc"></div>
                 </div>
 
