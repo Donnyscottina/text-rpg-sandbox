@@ -1,149 +1,129 @@
-/**
- * Combat system managing turn-based battles
- * Implements State pattern for combat flow
- */
-class CombatSystem {
-    constructor(player) {
-        this.player = player;
-        this.currentEnemy = null;
-        this.originalEnemyName = null;
-        this.observers = [];
+// js/systems/CombatSystem.js - Боевая система
+export class CombatSystem {
+    constructor(eventBus) {
+        this.eventBus = eventBus;
+        this.setupListeners();
     }
-    
-    addObserver(observer) {
-        this.observers.push(observer);
+
+    setupListeners() {
+        this.eventBus.on('combat:attack', (data) => this.handleAttack(data));
+        this.eventBus.on('combat:flee', (data) => this.handleFlee(data));
+        this.eventBus.on('combat:useItem', (data) => this.handleUseItem(data));
     }
-    
-    notify(message, type = 'combat') {
-        this.observers.forEach(obs => {
-            if (obs.addMessage) obs.addMessage(message, type);
+
+    startCombat(player, enemy) {
+        this.eventBus.emit('combat:started', { enemy });
+        this.eventBus.emit('message:combat', `⚔️ Бой начался! Враг: ${enemy.name}`);
+        this.eventBus.emit('message:combat', `${enemy.name} (HP: ${enemy.hp}/${enemy.maxHp})`);
+    }
+
+    handleAttack({ combat, state }) {
+        if (!combat) {
+            this.eventBus.emit('message:error', 'Вы не в бою!');
+            return;
+        }
+
+        const player = state.getPlayer();
+        const enemy = combat.enemy;
+        
+        // Атака игрока
+        const playerDamage = player.calculateAttackDamage();
+        const enemyResult = enemy.takeDamage(playerDamage);
+        
+        this.eventBus.emit('message:combat', 
+            `Вы наносите ${enemyResult.damage} урона! (${enemy.name}: ${enemy.hp}/${enemy.maxHp} HP)`
+        );
+
+        if (enemyResult.isDead) {
+            this.handleEnemyDefeated(state, enemy);
+            return;
+        }
+
+        // Ответная атака врага
+        const enemyDamage = enemy.calculateAttackDamage();
+        const playerResult = player.takeDamage(enemyDamage);
+        
+        this.eventBus.emit('message:combat',
+            `${enemy.name} наносит ${playerResult.damage} урона! (Ваше HP: ${player.hp}/${player.maxHp})`
+        );
+
+        if (playerResult.isDead) {
+            this.handlePlayerDefeated();
+        }
+    }
+
+    handleEnemyDefeated(state, enemy) {
+        const rewards = enemy.getRewards();
+        
+        this.eventBus.emit('message:success', `${enemy.name} повержен!`);
+        this.eventBus.emit('message:success', 
+            `Получено: ${rewards.xp} опыта и ${rewards.gold} золота`
+        );
+        
+        this.eventBus.emit('combat:ended', {
+            victory: true,
+            rewards: rewards,
+            enemyName: enemy.name
         });
     }
-    
-    isActive() {
-        return this.currentEnemy !== null;
+
+    handlePlayerDefeated() {
+        this.eventBus.emit('message:error', 'ВЫ ПОГИБЛИ!');
+        this.eventBus.emit('player:died');
     }
-    
-    /**
-     * Start combat with an enemy
-     * @param {Enemy} enemy
-     * @param {string} originalName
-     */
-    startCombat(enemy, originalName) {
-        this.currentEnemy = enemy;
-        this.originalEnemyName = originalName;
-        this.notify(`⚔️ Вы вступаете в бой с: ${enemy.name}!`);
-        this.notify(`${enemy.name} (HP: ${enemy.hp}/${enemy.maxHp})`);
-    }
-    
-    /**
-     * Execute one round of combat
-     * @returns {Object} { playerWon: bool, enemyWon: bool, ongoing: bool }
-     */
-    executeRound() {
-        if (!this.isActive()) return { ongoing: false };
-        
-        const enemy = this.currentEnemy;
-        
-        // Player attacks
-        const playerDamage = Math.max(1, this.player.attack - Math.floor(Math.random() * 5));
-        const enemyAlive = enemy.takeDamage(playerDamage);
-        this.notify(`Вы наносите ${playerDamage} урона! (${enemy.name}: ${enemy.hp}/${enemy.maxHp} HP)`);
-        
-        if (!enemyAlive) {
-            return this.handleVictory();
+
+    handleFlee({ combat, state }) {
+        if (!combat) {
+            this.eventBus.emit('message:error', 'Вы не в бою!');
+            return;
         }
-        
-        // Enemy attacks
-        const enemyDamage = enemy.getDamage(this.player.defense);
-        const playerAlive = this.player.takeDamage(enemyDamage);
-        this.notify(`${enemy.name} наносит вам ${enemyDamage} урона! (Ваше HP: ${this.player.hp}/${this.player.maxHp})`);
-        
-        if (!playerAlive) {
-            return this.handleDefeat();
-        }
-        
-        return { ongoing: true };
-    }
-    
-    /**
-     * Attempt to flee from combat
-     * @returns {boolean} true if successful
-     */
-    tryFlee() {
-        if (!this.isActive()) return false;
-        
-        if (Math.random() < 0.5) {
-            this.notify(`Вам удалось сбежать от ${this.currentEnemy.name}!`, 'success');
-            this.endCombat();
-            return true;
+
+        const fleeChance = 0.5;
+        const escaped = Math.random() < fleeChance;
+
+        if (escaped) {
+            this.eventBus.emit('message:success', `Вам удалось сбежать от ${combat.enemy.name}!`);
+            this.eventBus.emit('combat:ended', { victory: false, fled: true });
         } else {
-            this.notify('Не удалось сбежать!', 'error');
-            // Enemy gets free attack
-            const damage = this.currentEnemy.getDamage(this.player.defense);
-            const alive = this.player.takeDamage(damage);
-            this.notify(`${this.currentEnemy.name} наносит ${damage} урона!`);
+            this.eventBus.emit('message:error', 'Не удалось сбежать!');
             
-            if (!alive) {
-                this.handleDefeat();
+            const player = state.getPlayer();
+            const enemy = combat.enemy;
+            const damage = enemy.calculateAttackDamage();
+            const result = player.takeDamage(damage);
+            
+            this.eventBus.emit('message:combat',
+                `${enemy.name} атакует при попытке бегства! Урон: ${result.damage}`
+            );
+
+            if (result.isDead) {
+                this.handlePlayerDefeated();
             }
-            return false;
         }
     }
-    
-    /**
-     * Handle player victory
-     */
-    handleVictory() {
-        const enemy = this.currentEnemy;
-        this.notify(`${enemy.name} повержен!`, 'success');
-        this.player.addXP(enemy.xp);
-        this.player.addGold(enemy.gold);
-        this.notify(`Получено: ${enemy.xp} опыта и ${enemy.gold} золота`, 'success');
+
+    handleUseItem({ item, state, combat }) {
+        const player = state.getPlayer();
         
-        const result = { playerWon: true, enemyName: this.originalEnemyName };
-        this.endCombat();
-        return result;
-    }
-    
-    /**
-     * Handle player defeat
-     */
-    handleDefeat() {
-        this.notify('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
-        this.notify('Обновите страницу для начала новой игры.', 'system');
-        this.endCombat();
-        return { enemyWon: true };
-    }
-    
-    /**
-     * Enemy gets free attack (e.g., when using item)
-     */
-    enemyFreeAttack() {
-        if (!this.isActive()) return;
-        
-        const damage = this.currentEnemy.getDamage(this.player.defense);
-        const alive = this.player.takeDamage(damage);
-        this.notify(`${this.currentEnemy.name} атакует пока вы лечитесь! ${damage} урона.`);
-        
-        if (!alive) {
-            this.handleDefeat();
+        if (item.effect === 'heal') {
+            const healAmount = player.heal(item.value);
+            this.eventBus.emit('message:success', 
+                `Использовано ${item.name}. Восстановлено ${healAmount} HP`
+            );
         }
-    }
-    
-    /**
-     * End current combat
-     */
-    endCombat() {
-        this.currentEnemy = null;
-        this.originalEnemyName = null;
-    }
-    
-    /**
-     * Get current enemy
-     * @returns {Enemy|null}
-     */
-    getCurrentEnemy() {
-        return this.currentEnemy;
+
+        if (combat) {
+            const enemy = combat.enemy;
+            const damage = enemy.calculateAttackDamage();
+            const result = player.takeDamage(damage);
+            
+            this.eventBus.emit('message:combat',
+                `${enemy.name} атакует пока вы лечитесь! Урон: ${result.damage}`
+            );
+
+            if (result.isDead) {
+                this.handlePlayerDefeated();
+            }
+        }
     }
 }
