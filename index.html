@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text RPG Sandbox - MUD Style</title>
+    <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+    <div class="game-container">
+        <div class="header">
+            <h1>⚔️ Text RPG Sandbox</h1>
+            <div class="stats-bar">
+                <div class="stat">❤️ HP: <span id="hp">100</span>/<span id="maxHp">100</span></div>
+                <div class="stat">💧 MP: <span id="mp">50</span>/<span id="maxMp">50</span></div>
+                <div class="stat">💰 Gold: <span id="gold">100</span></div>
+                <div class="stat">⭐ Level: <span id="level">1</span></div>
+                <div class="stat">📊 XP: <span id="xp">0</span>/<span id="xpNeeded">100</span></div>
+            </div>
+        </div>
+
+        <div class="main-area">
+            <div class="left-panel">
+                <div class="map-container">
+                    <h3>🗺️ Карта мира</h3>
+                    <canvas id="worldMap" width="300" height="300"></canvas>
+                    <div class="map-legend">
+                        <div><span class="legend-player">◆</span> Вы</div>
+                        <div><span class="legend-town">■</span> Город</div>
+                        <div><span class="legend-dungeon">▲</span> Подземелье</div>
+                        <div><span class="legend-forest">♣</span> Лес</div>
+                    </div>
+                </div>
+
+                <div class="inventory-container">
+                    <h3>🎲 Инвентарь</h3>
+                    <div id="inventory"></div>
+                </div>
+
+                <div class="equipment-container">
+                    <h3>⚔️ Экипировка</h3>
+                    <div id="equipment">
+                        <div class="equip-slot">Оружие: <span id="weapon">Нет</span></div>
+                        <div class="equip-slot">Броня: <span id="armor">Нет</span></div>
+                        <div class="equip-slot">Шлем: <span id="helmet">Нет</span></div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="center-panel">
+                <div class="output-container" id="output">
+                    <div class="message system">Добро пожаловать в мир Text RPG Sandbox!</div>
+                    <div class="message system">Это текстовая RPG-песочница в стиле классических MUD игр.</div>
+                    <div class="message system">Вводите команды в поле ниже. Наберите 'help' для списка команд.</div>
+                </div>
+
+                <div class="input-container">
+                    <input type="text" id="commandInput" placeholder="Введите команду..." autocomplete="off">
+                    <button id="sendBtn">Отправить</button>
+                </div>
+            </div>
+
+            <div class="right-panel">
+                <div class="location-info">
+                    <h3>📍 Текущая локация</h3>
+                    <div id="locationName" class="location-name">Центральная площадь</div>
+                    <div id="locationDesc" class="location-desc"></div>
+                </div>
+
+                <div class="npcs-container">
+                    <h3>👥 Персонажи</h3>
+                    <div id="npcs"></div>
+                </div>
+
+                <div class="enemies-container">
+                    <h3>⚔️ Враги</h3>
+                    <div id="enemies"></div>
+                </div>
+
+                <div class="objects-container">
+                    <h3>📦 Объекты</h3>
+                    <div id="objects"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="game.js"></script>
+</body>
+</html>
