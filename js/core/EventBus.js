@@ -1,7 +1,8 @@
-// js/core/EventBus.js
+// js/core/EventBus.js - Pub/Sub система событий
 export class EventBus {
     constructor() {
         this.events = new Map();
+        this.debugMode = false;
     }
 
     on(event, callback) {
@@ -10,7 +11,7 @@ export class EventBus {
         }
         this.events.get(event).push(callback);
         
-        // Return unsubscribe function
+        // Возвращаем функцию для отписки
         return () => this.off(event, callback);
     }
 
@@ -25,6 +26,10 @@ export class EventBus {
     }
 
     emit(event, data) {
+        if (this.debugMode) {
+            console.log(`[EventBus] ${event}:`, data);
+        }
+        
         if (!this.events.has(event)) return;
         
         this.events.get(event).forEach(callback => {
@@ -44,15 +49,23 @@ export class EventBus {
         this.on(event, wrappedCallback);
     }
 
-    clear() {
-        this.events.clear();
+    clear(event = null) {
+        if (event) {
+            this.events.delete(event);
+        } else {
+            this.events.clear();
+        }
     }
 
-    getEventNames() {
-        return Array.from(this.events.keys());
+    setDebugMode(enabled) {
+        this.debugMode = enabled;
     }
 
-    getListenerCount(event) {
+    getEventCount() {
+        return this.events.size;
+    }
+
+    getListenersCount(event) {
         return this.events.has(event) ? this.events.get(event).length : 0;
     }
 }

@@ -1,5 +1,6 @@
-// js/core/GameState.js
+// js/core/GameState.js - Управление состоянием игры
 import { Player } from '../entities/Player.js';
+import { Enemy } from '../entities/Enemy.js';
 
 export class GameState {
     constructor() {
@@ -13,9 +14,7 @@ export class GameState {
             level: 1,
             xp: 0,
             attack: 10,
-            defense: 5,
-            x: 5,
-            y: 5
+            defense: 5
         });
         
         this.currentLocation = null;
@@ -38,22 +37,22 @@ export class GameState {
         this.player.setPosition(location.x, location.y);
     }
 
-    getWorldMap() {
-        return this.worldMap;
-    }
-
     setWorldMap(worldMap) {
         this.worldMap = worldMap;
         const startLocation = worldMap.getLocation('town_square');
         this.setLocation(startLocation);
     }
 
+    getWorldMap() {
+        return this.worldMap;
+    }
+
     isInCombat() {
         return this.combat !== null;
     }
 
-    startCombat(combat) {
-        this.combat = combat;
+    startCombat(enemy) {
+        this.combat = { enemy, originalName: enemy.name };
     }
 
     endCombat() {
@@ -71,13 +70,18 @@ export class GameState {
         this.historyIndex = this.commandHistory.length;
     }
 
-    getHistoryItem(offset) {
-        const index = this.historyIndex + offset;
-        if (index >= 0 && index < this.commandHistory.length) {
-            this.historyIndex = index;
-            return this.commandHistory[index];
-        }
-        if (index >= this.commandHistory.length) {
+    getHistory() {
+        return this.commandHistory;
+    }
+
+    navigateHistory(direction) {
+        if (direction === 'up' && this.historyIndex > 0) {
+            this.historyIndex--;
+            return this.commandHistory[this.historyIndex];
+        } else if (direction === 'down' && this.historyIndex < this.commandHistory.length - 1) {
+            this.historyIndex++;
+            return this.commandHistory[this.historyIndex];
+        } else if (direction === 'down' && this.historyIndex >= this.commandHistory.length - 1) {
             this.historyIndex = this.commandHistory.length;
             return '';
         }
@@ -87,20 +91,29 @@ export class GameState {
     serialize() {
         return {
             player: this.player.serialize(),
-            locationId: this.currentLocation?.id || 'town_square',
-            combat: this.combat?.serialize() || null,
+            locationId: this.currentLocation.id,
+            combat: this.combat ? {
+                enemy: this.combat.enemy.serialize(),
+                originalName: this.combat.originalName
+            } : null,
+            worldState: this.worldMap.serialize(),
             timestamp: Date.now()
         };
     }
 
     deserialize(data) {
         this.player.deserialize(data.player);
+        
+        if (data.worldState) {
+            this.worldMap.deserialize(data.worldState);
+        }
+        
         const location = this.worldMap.getLocation(data.locationId);
         this.setLocation(location);
         
         if (data.combat) {
-            // Combat restoration would be complex, skipping for now
-            this.combat = null;
+            const enemy = new Enemy(data.combat.enemy);
+            this.startCombat(enemy);
         }
     }
 }

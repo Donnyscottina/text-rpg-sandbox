@@ -1,4 +1,4 @@
-// js/core/Game.js
+// js/core/Game.js - Главный игровой контроллер
 import { GameState } from './GameState.js';
 import { EventBus } from './EventBus.js';
 import { UIManager } from '../ui/UIManager.js';
@@ -43,10 +43,10 @@ export class Game {
     }
 
     setupEventListeners() {
-        this.eventBus.on('command:executed', (cmd) => this.handleCommand(cmd));
+        this.eventBus.on('command:execute', (cmd) => this.handleCommand(cmd));
         this.eventBus.on('player:died', () => this.handleGameOver());
         this.eventBus.on('player:levelup', (data) => this.handleLevelUp(data));
-        this.eventBus.on('combat:started', (enemy) => this.handleCombatStart(enemy));
+        this.eventBus.on('combat:started', (data) => this.handleCombatStart(data));
         this.eventBus.on('combat:ended', (result) => this.handleCombatEnd(result));
         this.eventBus.on('game:save', () => this.save());
         this.eventBus.on('game:load', () => this.load());
@@ -61,11 +61,12 @@ export class Game {
         }
         
         command.execute(this.state, this.eventBus);
+        this.state.addToHistory(commandStr);
     }
 
     startGame() {
         this.eventBus.emit('game:started');
-        this.eventBus.emit('message:system', 'Добро пожаловать в игру! Наберите "help" для списка команд.');
+        this.eventBus.emit('message:system', 'Добро пожаловать в Text RPG Sandbox!');
         this.eventBus.emit('message:system', 'Используйте кнопки команд, WASD/стрелки для перемещения, или кликайте по карте.');
         
         const lookCmd = new LookCommand();
@@ -73,8 +74,8 @@ export class Game {
     }
 
     handleGameOver() {
-        this.eventBus.emit('message:error', 'ИГРА ОКОНЧЕНА!');
-        this.eventBus.emit('message:system', 'Обновите страницу для начала новой игры.');
+        this.eventBus.emit('message:error', 'ВЫ ПОГИБЛИ! Игра окончена.');
+        this.eventBus.emit('message:system', 'Обновите страницу для начала новой игры или загрузите сохранение.');
         this.uiManager.disableInput();
     }
 
@@ -82,61 +83,57 @@ export class Game {
         this.eventBus.emit('message:success', `★ УРОВЕНЬ ПОВЫШЕН! ★`);
         this.eventBus.emit('message:success', `Теперь вы ${data.level} уровня!`);
         this.eventBus.emit('message:success', 'Характеристики увеличены!');
-        this.uiManager.refresh();
+        this.uiManager.playLevelUpEffect();
     }
 
     handleCombatStart(data) {
+        this.state.startCombat(data.enemy);
         this.uiManager.refresh();
     }
 
     handleCombatEnd(result) {
-        this.state.endCombat();
-        
         if (result.victory && result.rewards) {
-            const player = this.state.getPlayer();
-            player.addGold(result.rewards.gold);
-            const levelUpData = player.addXp(result.rewards.xp);
+            this.state.getPlayer().addXp(result.rewards.xp);
+            this.state.getPlayer().addGold(result.rewards.gold);
             
+            const levelUpData = this.progressionSystem.checkLevelUp(this.state.getPlayer());
             if (levelUpData) {
                 this.eventBus.emit('player:levelup', levelUpData);
             }
+            
+            // Удаляем врага из локации
+            const location = this.state.getCurrentLocation();
+            location.removeEnemy(result.enemyName);
         }
         
+        this.state.endCombat();
         this.uiManager.refresh();
     }
 
     save() {
         const saveData = this.state.serialize();
         StorageManager.save('rpg_save', saveData);
-        this.eventBus.emit('message:system', 'Игра сохранена!');
+        this.eventBus.emit('message:system', '💾 Игра сохранена!');
     }
 
     load() {
         const saveData = StorageManager.load('rpg_save');
         if (saveData) {
             this.state.deserialize(saveData);
-            this.eventBus.emit('message:system', 'Игра загружена!');
+            this.eventBus.emit('message:system', '📂 Игра загружена!');
             this.uiManager.refresh();
             
             const lookCmd = new LookCommand();
             lookCmd.execute(this.state, this.eventBus);
         } else {
-            this.eventBus.emit('message:error', 'Нет сохраненных игр!');
+            this.eventBus.emit('message:error', 'Нет сохраненной игры!');
         }
     }
 
     reset() {
-        if (confirm('Вы уверены? Весь прогресс будет потерян!')) {
+        if (confirm('Вы уверены? Весь прогресс будет утерян!')) {
             StorageManager.remove('rpg_save');
             location.reload();
         }
-    }
-
-    getState() {
-        return this.state;
-    }
-
-    getEventBus() {
-        return this.eventBus;
     }
 }
