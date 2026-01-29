@@ -1,153 +1,82 @@
-// js/ui/UIManager.js - Управление UI
-import { OutputRenderer } from './OutputRenderer.js';
-import { MapRenderer } from './MapRenderer.js';
-import { QuickActionsUI } from './QuickActionsUI.js';
-
+// js/ui/UIManager.js
 export class UIManager {
     constructor(eventBus) {
         this.eventBus = eventBus;
-        this.outputRenderer = new OutputRenderer();
-        this.mapRenderer = null;
-        this.quickActionsUI = null;
-        this.inputDisabled = false;
+        this.historyIndex = -1;
+        this.commandHistory = [];
     }
 
     init() {
-        this.setupDOM();
         this.setupEventListeners();
-        this.mapRenderer = new MapRenderer();
-        this.quickActionsUI = new QuickActionsUI(this.eventBus);
-    }
-
-    setupDOM() {
-        this.commandInput = document.getElementById('commandInput');
-        this.sendBtn = document.getElementById('sendBtn');
+        this.setupInputHandlers();
     }
 
     setupEventListeners() {
-        // Message events
-        this.eventBus.on('message:system', (text) => this.outputRenderer.addMessage(text, 'system'));
-        this.eventBus.on('message:error', (text) => this.outputRenderer.addMessage(text, 'error'));
-        this.eventBus.on('message:success', (text) => this.outputRenderer.addMessage(text, 'success'));
-        this.eventBus.on('message:info', (text) => this.outputRenderer.addMessage(text, 'info'));
-        this.eventBus.on('message:combat', (text) => this.outputRenderer.addMessage(text, 'combat'));
+        this.eventBus.on('game:update', () => this.updateUI());
+        this.eventBus.on('message:system', (msg) => this.addMessage(msg, 'system'));
+        this.eventBus.on('message:success', (msg) => this.addMessage(msg, 'success'));
+        this.eventBus.on('message:error', (msg) => this.addMessage(msg, 'error'));
+        this.eventBus.on('message:info', (msg) => this.addMessage(msg, 'info'));
+        this.eventBus.on('message:combat', (msg) => this.addMessage(msg, 'combat'));
+    }
 
-        // UI update events
-        this.eventBus.on('location:changed', (location) => this.updateLocationDisplay(location));
-        this.eventBus.on('combat:started', () => this.refresh());
-        this.eventBus.on('combat:ended', () => this.refresh());
-        this.eventBus.on('game:started', () => this.refresh());
+    setupInputHandlers() {
+        const input = document.getElementById('commandInput');
+        const sendBtn = document.getElementById('sendBtn');
 
-        // Input events
-        this.commandInput.addEventListener('keypress', (e) => {
-            if (e.key === 'Enter' && !this.inputDisabled) {
-                this.handleCommandInput();
+        input.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter' && input.value.trim()) {
+                this.handleCommand(input.value);
+                input.value = '';
             }
         });
 
-        this.sendBtn.addEventListener('click', () => {
-            if (!this.inputDisabled) {
-                this.handleCommandInput();
+        sendBtn.addEventListener('click', () => {
+            if (input.value.trim()) {
+                this.handleCommand(input.value);
+                input.value = '';
             }
         });
 
-        // History navigation
-        this.commandInput.addEventListener('keydown', (e) => {
+        input.addEventListener('keydown', (e) => {
             if (e.key === 'ArrowUp') {
                 e.preventDefault();
-                this.navigateHistory('up');
+                if (this.historyIndex > 0) {
+                    this.historyIndex--;
+                    input.value = this.commandHistory[this.historyIndex] || '';
+                }
             } else if (e.key === 'ArrowDown') {
                 e.preventDefault();
-                this.navigateHistory('down');
+                if (this.historyIndex < this.commandHistory.length - 1) {
+                    this.historyIndex++;
+                    input.value = this.commandHistory[this.historyIndex] || '';
+                } else {
+                    this.historyIndex = this.commandHistory.length;
+                    input.value = '';
+                }
             }
         });
     }
 
-    handleCommandInput() {
-        const cmd = this.commandInput.value.trim();
-        if (cmd) {
-            this.outputRenderer.addMessage('> ' + cmd, 'info');
-            this.eventBus.emit('command:input', cmd);
-            this.commandInput.value = '';
+    handleCommand(cmd) {
+        if (this.commandHistory[this.commandHistory.length - 1] !== cmd) {
+            this.commandHistory.push(cmd);
         }
+        this.historyIndex = this.commandHistory.length;
+        this.addMessage('> ' + cmd, 'info');
+        this.eventBus.emit('command:input', cmd);
     }
 
-    navigateHistory(direction) {
-        // This will be handled by GameState
-        // For now, just a placeholder
+    addMessage(text, type = 'info') {
+        const output = document.getElementById('output');
+        const div = document.createElement('div');
+        div.className = `message ${type}`;
+        div.textContent = text;
+        output.appendChild(div);
+        output.scrollTop = output.scrollHeight;
     }
 
-    updateLocationDisplay(location) {
-        document.getElementById('locationName').textContent = location.name;
-        document.getElementById('locationDesc').textContent = location.desc;
-        
-        this.updateNPCsList(location.npcs || []);
-        this.updateEnemiesList(location.enemies || []);
-        this.updateObjectsList(location.objects || []);
-    }
-
-    updateNPCsList(npcs) {
-        const container = document.getElementById('npcs');
-        container.innerHTML = '';
-        
-        if (npcs.length === 0) {
-            container.innerHTML = '<div style="color: #666; font-size: 11px;">Никого нет</div>';
-            return;
-        }
-        
-        npcs.forEach(npc => {
-            const div = document.createElement('div');
-            div.className = 'npc';
-            div.textContent = '👤 ' + npc;
-            div.onclick = () => this.eventBus.emit('command:input', 'talk ' + npc);
-            container.appendChild(div);
-        });
-    }
-
-    updateEnemiesList(enemies) {
-        const container = document.getElementById('enemies');
-        container.innerHTML = '';
-        
-        if (enemies.length === 0) {
-            container.innerHTML = '<div style="color: #666; font-size: 11px;">Нет врагов</div>';
-            return;
-        }
-        
-        enemies.forEach(enemy => {
-            const div = document.createElement('div');
-            div.className = 'enemy';
-            div.textContent = '⚔️ ' + enemy;
-            div.onclick = () => this.eventBus.emit('command:input', 'attack ' + enemy);
-            container.appendChild(div);
-        });
-    }
-
-    updateObjectsList(objects) {
-        const container = document.getElementById('objects');
-        container.innerHTML = '';
-        
-        if (objects.length === 0) {
-            container.innerHTML = '<div style="color: #666; font-size: 11px;">Ничего нет</div>';
-            return;
-        }
-        
-        objects.forEach(obj => {
-            const div = document.createElement('div');
-            div.className = 'object';
-            div.textContent = '📦 ' + obj;
-            div.onclick = () => this.eventBus.emit('command:input', 'examine ' + obj);
-            container.appendChild(div);
-        });
-    }
-
-    refresh() {
-        // Trigger full UI refresh
+    updateUI() {
         this.eventBus.emit('ui:refresh');
-    }
-
-    disableInput() {
-        this.inputDisabled = true;
-        this.commandInput.disabled = true;
-        this.sendBtn.disabled = true;
     }
 }
