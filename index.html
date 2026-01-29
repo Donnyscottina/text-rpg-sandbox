@@ -12,9 +12,9 @@
             <div class="header-top">
                 <h1>⚔️ Text RPG Sandbox</h1>
                 <div class="header-actions">
-                    <button class="mini-btn" onclick="saveGame()" title="Сохранить">💾 Save</button>
-                    <button class="mini-btn" onclick="loadGame()" title="Загрузить">📂 Load</button>
-                    <button class="mini-btn danger" onclick="resetGame()" title="Сбросить прогресс">🔄 Reset</button>
+                    <button class="mini-btn" id="btnSave" title="Сохранить">Save</button>
+                    <button class="mini-btn" id="btnLoad" title="Загрузить">Load</button>
+                    <button class="mini-btn danger" id="btnReset" title="Сбросить прогресс">Reset</button>
                 </div>
             </div>
 
@@ -102,6 +102,6 @@
         </div>
     </div>
 
-    <script type="module" src="js/main.js"></script>
+    <script src="game.js"></script>
 </body>
 </html>
