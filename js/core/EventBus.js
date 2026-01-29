@@ -1,60 +1,58 @@
-/**
- * Event Bus - шина событий для event-driven архитектуры
- * Позволяет системам общаться без прямых зависимостей
- */
+// js/core/EventBus.js
 export class EventBus {
     constructor() {
-        this.listeners = new Map();
+        this.events = new Map();
     }
 
-    /**
-     * Подписка на событие
-     */
-    on(event, callback, context = null) {
-        if (!this.listeners.has(event)) {
-            this.listeners.set(event, []);
+    on(event, callback) {
+        if (!this.events.has(event)) {
+            this.events.set(event, []);
         }
-        this.listeners.get(event).push({ callback, context });
+        this.events.get(event).push(callback);
+        
+        // Return unsubscribe function
+        return () => this.off(event, callback);
     }
 
-    /**
-     * Отписка от события
-     */
     off(event, callback) {
-        if (!this.listeners.has(event)) return;
-        const callbacks = this.listeners.get(event);
-        const index = callbacks.findIndex(item => item.callback === callback);
+        if (!this.events.has(event)) return;
+        
+        const callbacks = this.events.get(event);
+        const index = callbacks.indexOf(callback);
         if (index !== -1) {
             callbacks.splice(index, 1);
         }
     }
 
-    /**
-     * Испускание события
-     */
-    emit(event, ...args) {
-        if (!this.listeners.has(event)) return;
-        const callbacks = this.listeners.get(event);
-        for (const { callback, context } of callbacks) {
-            callback.apply(context, args);
-        }
+    emit(event, data) {
+        if (!this.events.has(event)) return;
+        
+        this.events.get(event).forEach(callback => {
+            try {
+                callback(data);
+            } catch (error) {
+                console.error(`Error in event handler for ${event}:`, error);
+            }
+        });
     }
 
-    /**
-     * Одноразовая подписка
-     */
-    once(event, callback, context = null) {
-        const wrappedCallback = (...args) => {
-            callback.apply(context, args);
+    once(event, callback) {
+        const wrappedCallback = (data) => {
+            callback(data);
             this.off(event, wrappedCallback);
         };
-        this.on(event, wrappedCallback, context);
+        this.on(event, wrappedCallback);
     }
 
-    /**
-     * Очистка всех событий
-     */
     clear() {
-        this.listeners.clear();
+        this.events.clear();
+    }
+
+    getEventNames() {
+        return Array.from(this.events.keys());
+    }
+
+    getListenerCount(event) {
+        return this.events.has(event) ? this.events.get(event).length : 0;
     }
 }

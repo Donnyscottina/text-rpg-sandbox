@@ -1,29 +1,9 @@
-import { EventEmitter } from './EventEmitter.js';
+// js/core/GameState.js
+import { Player } from '../entities/Player.js';
 
-/**
- * GameState - Singleton паттерн для управления состоянием игры
- */
-export class GameState extends EventEmitter {
-    static instance = null;
-
+export class GameState {
     constructor() {
-        if (GameState.instance) {
-            return GameState.instance;
-        }
-        super();
-        this.initializeState();
-        GameState.instance = this;
-    }
-
-    static getInstance() {
-        if (!GameState.instance) {
-            GameState.instance = new GameState();
-        }
-        return GameState.instance;
-    }
-
-    initializeState() {
-        this.player = {
+        this.player = new Player({
             name: 'Герой',
             hp: 100,
             maxHp: 100,
@@ -32,94 +12,95 @@ export class GameState extends EventEmitter {
             gold: 100,
             level: 1,
             xp: 0,
-            xpNeeded: 100,
             attack: 10,
             defense: 5,
             x: 5,
-            y: 5,
-            location: 'town_square'
-        };
-
-        this.inventory = [
-            { name: 'Зелье здоровья', type: 'potion', effect: 'heal', value: 30, count: 3 },
-            { name: 'Хлеб', type: 'food', effect: 'heal', value: 10, count: 5 }
-        ];
-
-        this.equipment = {
-            weapon: null,
-            armor: null,
-            helmet: null
-        };
-
+            y: 5
+        });
+        
+        this.currentLocation = null;
+        this.worldMap = null;
         this.combat = null;
         this.commandHistory = [];
         this.historyIndex = -1;
     }
 
-    updatePlayer(updates) {
-        Object.assign(this.player, updates);
-        this.emit('player:updated', this.player);
+    getPlayer() {
+        return this.player;
     }
 
-    addToInventory(item) {
-        const existing = this.inventory.find(i => i.name === item.name);
-        if (existing && item.count) {
-            existing.count += item.count;
-        } else {
-            this.inventory.push(item);
-        }
-        this.emit('inventory:updated', this.inventory);
+    getCurrentLocation() {
+        return this.currentLocation;
     }
 
-    removeFromInventory(itemName) {
-        const index = this.inventory.findIndex(i => i.name === itemName);
-        if (index > -1) {
-            this.inventory.splice(index, 1);
-            this.emit('inventory:updated', this.inventory);
-        }
+    setLocation(location) {
+        this.currentLocation = location;
+        this.player.setPosition(location.x, location.y);
     }
 
-    startCombat(enemy, originalName) {
-        this.combat = { enemy, originalName };
-        this.emit('combat:started', this.combat);
+    getWorldMap() {
+        return this.worldMap;
+    }
+
+    setWorldMap(worldMap) {
+        this.worldMap = worldMap;
+        const startLocation = worldMap.getLocation('town_square');
+        this.setLocation(startLocation);
+    }
+
+    isInCombat() {
+        return this.combat !== null;
+    }
+
+    startCombat(combat) {
+        this.combat = combat;
     }
 
     endCombat() {
         this.combat = null;
-        this.emit('combat:ended');
     }
 
-    save() {
-        const saveData = {
-            player: this.player,
-            inventory: this.inventory,
-            equipment: this.equipment,
+    getCombat() {
+        return this.combat;
+    }
+
+    addToHistory(command) {
+        if (this.commandHistory[this.commandHistory.length - 1] !== command) {
+            this.commandHistory.push(command);
+        }
+        this.historyIndex = this.commandHistory.length;
+    }
+
+    getHistoryItem(offset) {
+        const index = this.historyIndex + offset;
+        if (index >= 0 && index < this.commandHistory.length) {
+            this.historyIndex = index;
+            return this.commandHistory[index];
+        }
+        if (index >= this.commandHistory.length) {
+            this.historyIndex = this.commandHistory.length;
+            return '';
+        }
+        return null;
+    }
+
+    serialize() {
+        return {
+            player: this.player.serialize(),
+            locationId: this.currentLocation?.id || 'town_square',
+            combat: this.combat?.serialize() || null,
             timestamp: Date.now()
         };
-        localStorage.setItem('rpg_save', JSON.stringify(saveData));
-        return true;
     }
 
-    load() {
-        const saveData = localStorage.getItem('rpg_save');
-        if (!saveData) return false;
+    deserialize(data) {
+        this.player.deserialize(data.player);
+        const location = this.worldMap.getLocation(data.locationId);
+        this.setLocation(location);
         
-        try {
-            const data = JSON.parse(saveData);
-            this.player = data.player;
-            this.inventory = data.inventory;
-            this.equipment = data.equipment;
-            this.emit('game:loaded');
-            return true;
-        } catch (error) {
-            console.error('Error loading save:', error);
-            return false;
+        if (data.combat) {
+            // Combat restoration would be complex, skipping for now
+            this.combat = null;
         }
-    }
-
-    reset() {
-        localStorage.removeItem('rpg_save');
-        this.initializeState();
-        this.emit('game:reset');
     }
 }
