@@ -1,47 +1,41 @@
-// js/entities/Enemy.js - Класс врага
-import { Character } from './Character.js';
-
-export class Enemy extends Character {
-    constructor(config) {
-        super(config);
-        this.xp = config.xp || 30;
-        this.gold = config.gold || 15;
+// js/entities/Enemy.js
+export class Enemy {
+    constructor(name, config) {
+        this.name = name;
+        this.hp = config.hp;
+        this.maxHp = config.hp;
+        this.attack = config.attack;
+        this.xp = config.xp;
+        this.gold = config.gold;
     }
 
-    static createFromTemplate(name) {
-        const templates = {
-            'Волк': { hp: 30, attack: 8, defense: 2, xp: 25, gold: 10 },
-            'Разбойник': { hp: 40, attack: 12, defense: 3, xp: 35, gold: 25 },
-            'Гигантский паук': { hp: 50, attack: 15, defense: 4, xp: 50, gold: 30 },
-            'Темный волк': { hp: 45, attack: 14, defense: 3, xp: 45, gold: 20 },
-            'Скелет-воин': { hp: 45, attack: 13, defense: 5, xp: 40, gold: 20 },
-            'Зомби': { hp: 60, attack: 10, defense: 2, xp: 45, gold: 15 }
+    takeDamage(amount) {
+        this.hp = Math.max(0, this.hp - amount);
+        return this.hp <= 0;
+    }
+
+    calculateDamage() {
+        return Math.max(1, this.attack - Math.floor(Math.random() * 5));
+    }
+
+    isDead() {
+        return this.hp <= 0;
+    }
+
+    static create(name) {
+        const configs = {
+            'волк': { hp: 30, attack: 8, xp: 25, gold: 10 },
+            'разбойник': { hp: 40, attack: 12, xp: 35, gold: 25 },
+            'паук': { hp: 50, attack: 15, xp: 50, gold: 30 },
+            'скелет': { hp: 45, attack: 13, xp: 40, gold: 20 },
+            'зомби': { hp: 60, attack: 10, xp: 45, gold: 15 }
         };
 
-        const template = templates[name] || { hp: 35, attack: 10, defense: 2, xp: 30, gold: 15 };
-        
-        return new Enemy({
-            name: name,
-            maxHp: template.hp,
-            hp: template.hp,
-            attack: template.attack,
-            defense: template.defense,
-            xp: template.xp,
-            gold: template.gold
-        });
-    }
-
-    serialize() {
-        return {
-            ...super.serialize(),
-            xp: this.xp,
-            gold: this.gold
-        };
-    }
-
-    deserialize(data) {
-        super.deserialize(data);
-        this.xp = data.xp;
-        this.gold = data.gold;
+        for (const [key, cfg] of Object.entries(configs)) {
+            if (name.toLowerCase().includes(key)) {
+                return new Enemy(name, cfg);
+            }
+        }
+        return new Enemy(name, { hp: 35, attack: 10, xp: 30, gold: 15 });
     }
 }

@@ -1,4 +1,4 @@
-// js/core/EventBus.js - Система событий (Observer Pattern)
+// js/core/EventBus.js
 export class EventBus {
     constructor() {
         this.events = new Map();
@@ -9,14 +9,10 @@ export class EventBus {
             this.events.set(event, []);
         }
         this.events.get(event).push(callback);
-        
-        // Возвращаем функцию для отписки
-        return () => this.off(event, callback);
     }
 
     off(event, callback) {
         if (!this.events.has(event)) return;
-        
         const callbacks = this.events.get(event);
         const index = callbacks.indexOf(callback);
         if (index !== -1) {
@@ -26,29 +22,12 @@ export class EventBus {
 
     emit(event, data) {
         if (!this.events.has(event)) return;
-        
-        this.events.get(event).forEach(callback => {
+        this.events.get(event).forEach(cb => {
             try {
-                callback(data);
+                cb(data);
             } catch (error) {
-                console.error(`Error in event handler for "${event}":`, error);
+                console.error(`Error in ${event}:`, error);
             }
         });
-    }
-
-    once(event, callback) {
-        const wrappedCallback = (data) => {
-            callback(data);
-            this.off(event, wrappedCallback);
-        };
-        this.on(event, wrappedCallback);
-    }
-
-    clear(event) {
-        if (event) {
-            this.events.delete(event);
-        } else {
-            this.events.clear();
-        }
     }
 }

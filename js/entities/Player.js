@@ -1,38 +1,28 @@
-// js/entities/Player.js - Класс игрока
-import { Character } from './Character.js';
-import { Inventory } from '../systems/Inventory.js';
-import { Equipment } from '../systems/Equipment.js';
-
-export class Player extends Character {
+// js/entities/Player.js
+export class Player {
     constructor(config) {
-        super(config);
-        this.gold = config.gold || 0;
-        this.level = config.level || 1;
-        this.xp = config.xp || 0;
+        this.name = config.name;
+        this.hp = config.hp;
+        this.maxHp = config.maxHp;
+        this.mp = config.mp;
+        this.maxMp = config.maxMp;
+        this.gold = config.gold;
+        this.level = config.level;
+        this.xp = config.xp;
         this.xpNeeded = this.calculateXpNeeded(this.level);
-        this.inventory = new Inventory();
-        this.equipment = new Equipment();
+        this.attack = config.attack;
+        this.defense = config.defense;
         this.x = config.x || 0;
         this.y = config.y || 0;
-        
-        // Инициализация стартового инвентаря
-        this.initStartingInventory();
+        this.inventory = [
+            { name: 'Зелье здоровья', type: 'potion', effect: 'heal', value: 30, count: 3 },
+            { name: 'Хлеб', type: 'food', effect: 'heal', value: 10, count: 5 }
+        ];
+        this.equipment = { weapon: null, armor: null, helmet: null };
     }
 
-    initStartingInventory() {
-        const Item = require('../entities/Item.js').Item;
-        this.inventory.addItem(new Item({
-            name: 'Зелье здоровья',
-            type: 'potion',
-            effect: 'heal',
-            value: 30
-        }), 3);
-        this.inventory.addItem(new Item({
-            name: 'Хлеб',
-            type: 'food',
-            effect: 'heal',
-            value: 10
-        }), 5);
+    calculateXpNeeded(level) {
+        return Math.floor(100 * Math.pow(1.5, level - 1));
     }
 
     addXp(amount) {
@@ -47,83 +37,61 @@ export class Player extends Character {
         this.level++;
         this.xp = 0;
         this.xpNeeded = this.calculateXpNeeded(this.level);
-        
-        const hpIncrease = 20;
-        const mpIncrease = 10;
-        const attackIncrease = 5;
-        const defenseIncrease = 2;
-        
-        this.maxHp += hpIncrease;
+        this.maxHp += 20;
         this.hp = this.maxHp;
-        this.maxMp += mpIncrease;
+        this.maxMp += 10;
         this.mp = this.maxMp;
-        this.attack += attackIncrease;
-        this.defense += defenseIncrease;
-        
-        return {
-            level: this.level,
-            increases: {
-                hp: hpIncrease,
-                mp: mpIncrease,
-                attack: attackIncrease,
-                defense: defenseIncrease
-            }
-        };
+        this.attack += 5;
+        this.defense += 2;
+        return { level: this.level };
     }
 
-    calculateXpNeeded(level) {
-        return Math.floor(100 * Math.pow(1.5, level - 1));
+    takeDamage(amount) {
+        const damage = Math.max(1, amount - this.defense);
+        this.hp = Math.max(0, this.hp - damage);
+        return damage;
     }
 
-    addGold(amount) {
-        this.gold += amount;
+    heal(amount) {
+        const healed = Math.min(amount, this.maxHp - this.hp);
+        this.hp = Math.min(this.maxHp, this.hp + amount);
+        return healed;
     }
 
-    removeGold(amount) {
-        if (this.gold < amount) return false;
-        this.gold -= amount;
-        return true;
+    isDead() {
+        return this.hp <= 0;
     }
 
-    setPosition(x, y) {
-        this.x = x;
-        this.y = y;
+    rest() {
+        this.hp = this.maxHp;
+        this.mp = this.maxMp;
     }
 
-    getPosition() {
-        return { x: this.x, y: this.y };
-    }
-
-    getInventory() {
-        return this.inventory;
-    }
-
-    getEquipment() {
-        return this.equipment;
+    calculateDamage() {
+        return Math.max(1, this.attack - Math.floor(Math.random() * 5));
     }
 
     serialize() {
         return {
-            ...super.serialize(),
+            name: this.name,
+            hp: this.hp,
+            maxHp: this.maxHp,
+            mp: this.mp,
+            maxMp: this.maxMp,
             gold: this.gold,
             level: this.level,
             xp: this.xp,
+            attack: this.attack,
+            defense: this.defense,
             x: this.x,
             y: this.y,
-            inventory: this.inventory.serialize(),
-            equipment: this.equipment.serialize()
+            inventory: this.inventory,
+            equipment: this.equipment
         };
     }
 
     deserialize(data) {
-        super.deserialize(data);
-        this.gold = data.gold;
-        this.level = data.level;
-        this.xp = data.xp;
+        Object.assign(this, data);
         this.xpNeeded = this.calculateXpNeeded(this.level);
-        this.x = data.x;
-        this.y = data.y;
-        this.inventory.deserialize(data.inventory);
-        this.equipment.deserialize(data.equipment);
     }
 }
