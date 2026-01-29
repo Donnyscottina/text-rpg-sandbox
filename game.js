@@ -25,7 +25,7 @@ const gameState = {
         armor: null,
         helmet: null
     },
-    combat: null, // { enemy: {...}, originalName: '...' }
+    combat: null,
     commandHistory: [],
     historyIndex: -1
 };
@@ -37,73 +37,39 @@ const worldMap = {
     tiles: []
 };
 
-// Command Registry with RU/EN aliases
-const COMMANDS = {
-    help: { ru: ['помощь', 'help', '?'], en: ['help', '?'], desc: 'Список команд' },
-    look: { ru: ['осмотреться', 'look', 'l', 'о'], en: ['look', 'l'], desc: 'Осмотреть локацию' },
-    north: { ru: ['north', 'n', 'с', 'север'], en: ['north', 'n'], desc: 'Идти на север' },
-    south: { ru: ['south', 's', 'ю', 'юг'], en: ['south', 's'], desc: 'Идти на юг' },
-    east: { ru: ['east', 'e', 'в', 'восток'], en: ['east', 'e'], desc: 'Идти на восток' },
-    west: { ru: ['west', 'w', 'з', 'запад'], en: ['west', 'w'], desc: 'Идти на запад' },
-    up: { ru: ['up', 'u', 'вв', 'вверх'], en: ['up', 'u'], desc: 'Идти вверх' },
-    down: { ru: ['down', 'd', 'вн', 'вниз'], en: ['down', 'd'], desc: 'Идти вниз' },
-    talk: { ru: ['говорить', 'talk', 'т'], en: ['talk', 't'], desc: 'Поговорить' },
-    attack: { ru: ['атаковать', 'attack', 'а'], en: ['attack', 'a'], desc: 'Атаковать' },
-    use: { ru: ['использовать', 'use', 'и'], en: ['use'], desc: 'Использовать предмет' },
-    take: { ru: ['взять', 'take', 'в'], en: ['take'], desc: 'Взять объект' },
-    examine: { ru: ['осмотреть', 'examine', 'х'], en: ['examine', 'x'], desc: 'Осмотреть объект' },
-    inventory: { ru: ['инвентарь', 'inventory', 'i', 'инв'], en: ['inventory', 'i'], desc: 'Инвентарь' },
-    stats: { ru: ['статистика', 'stats', 'ст'], en: ['stats'], desc: 'Статистика' },
-    rest: { ru: ['отдохнуть', 'rest', 'р'], en: ['rest'], desc: 'Отдохнуть' },
-    flee: { ru: ['бежать', 'flee', 'убежать', 'б'], en: ['flee', 'run'], desc: 'Убежать из боя' }
-};
-
-// Direction mappings
-const DIRECTIONS = {
-    north: { dx: 0, dy: -1 },
-    south: { dx: 0, dy: 1 },
-    east: { dx: 1, dy: 0 },
-    west: { dx: -1, dy: 0 },
-    up: { dx: 0, dy: 0 },
-    down: { dx: 0, dy: 0 }
-};
-
 // Locations Database
 const locations = {
     town_square: {
         name: 'Центральная площадь',
-        desc: 'Оживленная площадь в центре города. Вокруг толпятся торговцы и путешественники. На севере виден храм, на востоке - таверна, на западе - рынок.',
+        desc: 'Оживленная площадь в центре города. Вокруг толпятся торговцы и путешественники.',
         x: 5, y: 5,
         type: 'town',
         npcs: ['Торговец Маркус', 'Стражник Джон'],
-        objects: ['Фонтан', 'Доска объявлений'],
+        objects: ['Фонтан'],
         exits: { north: 'temple', south: 'south_gate', east: 'tavern', west: 'market' }
     },
     temple: {
         name: 'Храм Света',
-        desc: 'Величественный храм с высокими колоннами. Здесь можно исцелиться и получить благословение.',
+        desc: 'Величественный храм. Здесь можно исцелиться.',
         x: 5, y: 4,
         type: 'town',
         npcs: ['Жрица Элара'],
-        objects: ['Алтарь', 'Свечи'],
         exits: { south: 'town_square' }
     },
     tavern: {
         name: 'Таверна "Золотой дракон"',
-        desc: 'Уютная таверна, полная приключенцев. Пахнет элем и жареным мясом. В углу играет бард.',
+        desc: 'Уютная таверна. Пахнет элем и жареным мясом.',
         x: 6, y: 5,
         type: 'town',
-        npcs: ['Трактирщик Боб', 'Бард Томас', 'Старый воин'],
-        objects: ['Бочка с элем', 'Стол для игры в кости'],
+        npcs: ['Трактирщик Боб'],
         exits: { west: 'town_square' }
     },
     market: {
         name: 'Городской рынок',
-        desc: 'Шумный рынок с множеством лавок. Торговцы предлагают оружие, доспехи и различные товары.',
+        desc: 'Шумный рынок с множеством лавок.',
         x: 4, y: 5,
         type: 'town',
-        npcs: ['Кузнец Торин', 'Торговец оружием', 'Торговец зельями'],
-        objects: ['Кузница', 'Лавка оружия', 'Алхимическая лавка'],
+        npcs: ['Кузнец Торин'],
         exits: { east: 'town_square' }
     },
     south_gate: {
@@ -112,51 +78,37 @@ const locations = {
         x: 5, y: 6,
         type: 'town',
         npcs: ['Капитан стражи'],
-        objects: ['Ворота'],
         exits: { north: 'town_square', south: 'dark_forest' }
     },
     dark_forest: {
         name: 'Темный лес',
-        desc: 'Густой мрачный лес. Слышны странные звуки. Будьте осторожны!',
+        desc: 'Густой мрачный лес. Слышны странные звуки.',
         x: 5, y: 7,
         type: 'forest',
-        npcs: [],
         enemies: ['Волк', 'Разбойник'],
-        objects: ['Старое дерево'],
-        exits: { north: 'south_gate', south: 'forest_depths', east: 'forest_clearing' }
+        exits: { north: 'south_gate', south: 'forest_depths' }
     },
     forest_depths: {
         name: 'Глубь леса',
-        desc: 'Темнота сгущается. Деревья здесь особенно старые и зловещие.',
+        desc: 'Темнота сгущается. Очень опасно!',
         x: 5, y: 8,
         type: 'forest',
         enemies: ['Гигантский паук', 'Темный волк'],
-        objects: ['Заброшенный лагерь'],
         exits: { north: 'dark_forest', west: 'dungeon_entrance' }
-    },
-    forest_clearing: {
-        name: 'Лесная поляна',
-        desc: 'Солнечная поляна в лесу. Здесь растут целебные травы.',
-        x: 6, y: 7,
-        type: 'forest',
-        objects: ['Целебные травы', 'Ягодный куст'],
-        exits: { west: 'dark_forest' }
     },
     dungeon_entrance: {
         name: 'Вход в подземелье',
-        desc: 'Темный зловещий вход в древнее подземелье. Оттуда веет холодом и опасностью.',
+        desc: 'Темный зловещий вход.',
         x: 4, y: 8,
         type: 'dungeon',
-        objects: ['Каменная дверь'],
         exits: { east: 'forest_depths', down: 'dungeon_level1' }
     },
     dungeon_level1: {
         name: 'Подземелье - Уровень 1',
-        desc: 'Сырой каменный коридор. На стенах древние руны. Слышны шаги...',
+        desc: 'Сырой каменный коридор.',
         x: 4, y: 9,
         type: 'dungeon',
         enemies: ['Скелет-воин', 'Зомби'],
-        objects: ['Сундук', 'Факел'],
         exits: { up: 'dungeon_entrance' }
     }
 };
@@ -223,7 +175,6 @@ function drawWorldMap() {
         }
     }
     
-    // Draw player
     ctx.fillStyle = '#ffff00';
     ctx.font = 'bold 20px Arial';
     ctx.textAlign = 'center';
@@ -231,100 +182,45 @@ function drawWorldMap() {
     ctx.fillText('◆', gameState.player.x * tileSize + tileSize/2, gameState.player.y * tileSize + tileSize/2);
 }
 
-// Get suggested commands based on current location
+// Get suggested commands
 function getSuggestedCommands() {
     const loc = locations[gameState.player.location];
     const suggestions = [];
     
-    // If in combat, show combat commands
     if (gameState.combat) {
-        suggestions.push({ label: '⚔️ Атаковать', command: 'attack', category: 'combat', style: 'danger' });
-        suggestions.push({ label: '🏃 Убежать', command: 'flee', category: 'combat' });
-        suggestions.push({ label: '🎒 Инвентарь', command: 'inventory', category: 'util' });
-        
-        // Show usable items
-        gameState.inventory.filter(i => i.effect === 'heal').forEach(item => {
-            suggestions.push({
-                label: `💊 ${item.name}`,
-                command: `use ${item.name}`,
-                category: 'combat'
-            });
-        });
-        
+        suggestions.push({ label: '⚔️ Атаковать', command: 'attack', style: 'danger' });
+        suggestions.push({ label: '🏃 Убежать', command: 'flee' });
+        suggestions.push({ label: '🎒 Инвентарь', command: 'inventory' });
         return suggestions;
     }
     
-    // Movement commands
     if (loc.exits) {
-        for (const [dir, targetLoc] of Object.entries(loc.exits)) {
-            const dirLabel = {
-                north: '↑ Север',
-                south: '↓ Юг',
-                east: '→ Восток',
-                west: '← Запад',
-                up: '⬆ Вверх',
-                down: '⬇ Вниз'
-            }[dir] || dir;
-            
-            suggestions.push({
-                label: dirLabel,
-                command: dir,
-                category: 'movement',
-                style: 'secondary'
-            });
+        for (const [dir] of Object.entries(loc.exits)) {
+            const dirLabel = { north: '↑ Север', south: '↓ Юг', east: '→ Восток', west: '← Запад', up: '⬆ Вверх', down: '⬇ Вниз' }[dir] || dir;
+            suggestions.push({ label: dirLabel, command: dir, style: 'secondary' });
         }
     }
     
-    // Action commands
-    suggestions.push({ label: '👁 Осмотреться', command: 'look', category: 'action' });
+    suggestions.push({ label: '👁 Осмотреться', command: 'look' });
     
     if (loc.type === 'town') {
-        suggestions.push({ label: '💤 Отдохнуть', command: 'rest', category: 'action' });
+        suggestions.push({ label: '💤 Отдохнуть', command: 'rest' });
     }
     
-    // NPC interactions
-    if (loc.npcs && loc.npcs.length > 0) {
-        loc.npcs.forEach(npc => {
-            suggestions.push({
-                label: `💬 ${npc}`,
-                command: `talk ${npc}`,
-                category: 'npc'
-            });
-        });
-    }
-    
-    // Enemy combat
     if (loc.enemies && loc.enemies.length > 0) {
         loc.enemies.forEach(enemy => {
-            suggestions.push({
-                label: `⚔️ ${enemy}`,
-                command: `attack ${enemy}`,
-                category: 'combat',
-                style: 'danger'
-            });
+            suggestions.push({ label: `⚔️ ${enemy}`, command: `attack ${enemy}`, style: 'danger' });
         });
     }
     
-    // Objects
-    if (loc.objects && loc.objects.length > 0) {
-        loc.objects.forEach(obj => {
-            suggestions.push({
-                label: `🔍 ${obj}`,
-                command: `examine ${obj}`,
-                category: 'object'
-            });
-        });
-    }
-    
-    // Utility
-    suggestions.push({ label: '🎒 Инвентарь', command: 'inventory', category: 'util' });
-    suggestions.push({ label: '📊 Статистика', command: 'stats', category: 'util' });
-    suggestions.push({ label: '❓ Помощь', command: 'help', category: 'util' });
+    suggestions.push({ label: '🎒 Инвентарь', command: 'inventory' });
+    suggestions.push({ label: '📊 Статистика', command: 'stats' });
+    suggestions.push({ label: '❓ Помощь', command: 'help' });
     
     return suggestions;
 }
 
-// Render quick action buttons
+// Render quick actions
 function renderQuickActions() {
     const container = document.getElementById('quickActions');
     const suggestions = getSuggestedCommands();
@@ -361,13 +257,9 @@ function updateUI() {
     const loc = locations[gameState.player.location];
     if (loc) {
         document.getElementById('locationName').textContent = loc.name;
-        
-        // Show combat status in description if in combat
-        if (gameState.combat) {
-            document.getElementById('locationDesc').textContent = `⚔️ БОЙ! Враг: ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp}/${gameState.combat.enemy.maxHp})`;
-        } else {
-            document.getElementById('locationDesc').textContent = loc.desc;
-        }
+        document.getElementById('locationDesc').textContent = gameState.combat ? 
+            `⚔️ БОЙ! ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp}/${gameState.combat.enemy.maxHp})` : 
+            loc.desc;
         
         const npcsDiv = document.getElementById('npcs');
         npcsDiv.innerHTML = '';
@@ -376,11 +268,8 @@ function updateUI() {
                 const div = document.createElement('div');
                 div.className = 'npc';
                 div.textContent = '👤 ' + npc;
-                div.onclick = () => executeCommand('talk ' + npc);
                 npcsDiv.appendChild(div);
             });
-        } else {
-            npcsDiv.innerHTML = '<div style="color: #666; font-size: 11px;">Никого нет</div>';
         }
         
         const enemiesDiv = document.getElementById('enemies');
@@ -389,19 +278,14 @@ function updateUI() {
             const div = document.createElement('div');
             div.className = 'enemy';
             div.textContent = `⚔️ ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp})`;
-            div.style.borderColor = '#ff0000';
-            div.style.backgroundColor = '#330000';
             enemiesDiv.appendChild(div);
         } else if (loc.enemies && loc.enemies.length > 0) {
             loc.enemies.forEach(enemy => {
                 const div = document.createElement('div');
                 div.className = 'enemy';
                 div.textContent = '⚔️ ' + enemy;
-                div.onclick = () => executeCommand('attack ' + enemy);
                 enemiesDiv.appendChild(div);
             });
-        } else {
-            enemiesDiv.innerHTML = '<div style="color: #666; font-size: 11px;">Нет врагов</div>';
         }
         
         const objectsDiv = document.getElementById('objects');
@@ -411,21 +295,17 @@ function updateUI() {
                 const div = document.createElement('div');
                 div.className = 'object';
                 div.textContent = '📦 ' + obj;
-                div.onclick = () => executeCommand('examine ' + obj);
                 objectsDiv.appendChild(div);
             });
-        } else {
-            objectsDiv.innerHTML = '<div style="color: #666; font-size: 11px;">Ничего нет</div>';
         }
     }
     
     const invDiv = document.getElementById('inventory');
     invDiv.innerHTML = '';
-    gameState.inventory.forEach((item, index) => {
+    gameState.inventory.forEach(item => {
         const div = document.createElement('div');
         div.className = 'item';
         div.textContent = `${item.name} (${item.count})`;
-        div.onclick = () => executeCommand('use ' + item.name);
         invDiv.appendChild(div);
     });
     
@@ -437,7 +317,7 @@ function updateUI() {
     renderQuickActions();
 }
 
-// Add message to output
+// Add message
 function addMessage(text, type = 'info') {
     const output = document.getElementById('output');
     const div = document.createElement('div');
@@ -447,14 +327,13 @@ function addMessage(text, type = 'info') {
     output.scrollTop = output.scrollHeight;
 }
 
-// Command processing
+// Execute command
 function executeCommand(cmd) {
     cmd = cmd.trim().toLowerCase();
     if (!cmd) return;
     
     addMessage('> ' + cmd, 'info');
     
-    // Save to history
     if (gameState.commandHistory[gameState.commandHistory.length - 1] !== cmd) {
         gameState.commandHistory.push(cmd);
     }
@@ -464,129 +343,33 @@ function executeCommand(cmd) {
     const command = parts[0];
     const args = parts.slice(1).join(' ');
     
-    switch(command) {
-        case 'help':
-        case 'помощь':
-        case '?':
-            showHelp();
-            break;
-        case 'look':
-        case 'осмотреться':
-        case 'l':
-        case 'о':
-            look();
-            break;
-        case 'go':
-        case 'идти':
-        case 'north':
-        case 'south':
-        case 'east':
-        case 'west':
-        case 'up':
-        case 'down':
-        case 'n':
-        case 's':
-        case 'e':
-        case 'w':
-        case 'u':
-        case 'd':
-        case 'с':
-        case 'ю':
-        case 'в':
-        case 'з':
-        case 'вв':
-        case 'вн':
-        case 'север':
-        case 'юг':
-        case 'восток':
-        case 'запад':
-        case 'вверх':
-        case 'вниз':
-            go(command === 'go' || command === 'идти' ? args : normalizeDirection(command));
-            break;
-        case 'talk':
-        case 'говорить':
-        case 'т':
-            talk(args);
-            break;
-        case 'attack':
-        case 'атаковать':
-        case 'а':
-            attack(args);
-            break;
-        case 'flee':
-        case 'бежать':
-        case 'убежать':
-        case 'б':
-            flee();
-            break;
-        case 'use':
-        case 'использовать':
-        case 'и':
-            useItem(args);
-            break;
-        case 'take':
-        case 'взять':
-            take(args);
-            break;
-        case 'examine':
-        case 'осмотреть':
-        case 'х':
-        case 'x':
-            examine(args);
-            break;
-        case 'inventory':
-        case 'инвентарь':
-        case 'i':
-        case 'инв':
-            showInventory();
-            break;
-        case 'stats':
-        case 'статистика':
-        case 'ст':
-            showStats();
-            break;
-        case 'rest':
-        case 'отдохнуть':
-        case 'р':
-            rest();
-            break;
-        default:
-            addMessage('Неизвестная команда. Наберите "help" для списка команд.', 'error');
+    const dirMap = { n: 'north', с: 'north', s: 'south', ю: 'south', e: 'east', в: 'east', w: 'west', з: 'west', u: 'up', вв: 'up', d: 'down', вн: 'down' };
+    const normalizedCmd = dirMap[command] || command;
+    
+    switch(normalizedCmd) {
+        case 'help': case 'помощь': case '?': showHelp(); break;
+        case 'look': case 'осмотреться': case 'l': case 'о': look(); break;
+        case 'north': case 'south': case 'east': case 'west': case 'up': case 'down': go(normalizedCmd); break;
+        case 'attack': case 'атаковать': case 'а': attack(args); break;
+        case 'flee': case 'бежать': case 'б': flee(); break;
+        case 'use': case 'использовать': useItem(args); break;
+        case 'inventory': case 'инвентарь': case 'i': case 'инв': showInventory(); break;
+        case 'stats': case 'статистика': case 'ст': showStats(); break;
+        case 'rest': case 'отдохнуть': case 'р': rest(); break;
+        default: addMessage('Неизвестная команда. Наберите "help"', 'error');
     }
-}
-
-// Normalize direction aliases to base direction
-function normalizeDirection(dir) {
-    const map = {
-        'n': 'north', 'с': 'north', 'север': 'north',
-        's': 'south', 'ю': 'south', 'юг': 'south',
-        'e': 'east', 'в': 'east', 'восток': 'east',
-        'w': 'west', 'з': 'west', 'запад': 'west',
-        'u': 'up', 'вв': 'up', 'вверх': 'up',
-        'd': 'down', 'вн': 'down', 'вниз': 'down'
-    };
-    return map[dir] || dir;
 }
 
 function showHelp() {
     addMessage('=== СПИСОК КОМАНД ===', 'system');
-    addMessage('look / осмотреться / l / о - Осмотреть локацию', 'success');
-    addMessage('north/south/east/west/up/down / n/s/e/w/u/d / с/ю/в/з/вв/вн - Двигаться', 'success');
-    addMessage('talk [имя] / говорить / т - Поговорить с NPC', 'success');
-    addMessage('attack [враг] / атаковать / а - Атаковать врага (или продолжить бой)', 'success');
-    addMessage('flee / бежать / б - Убежать из боя', 'success');
-    addMessage('use [предмет] / использовать / и - Использовать предмет', 'success');
-    addMessage('take [объект] / взять - Взять объект', 'success');
-    addMessage('examine [объект] / осмотреть / х - Осмотреть объект', 'success');
-    addMessage('inventory / инвентарь / i / инв - Показать инвентарь', 'success');
-    addMessage('stats / статистика / ст - Показать статистику', 'success');
-    addMessage('rest / отдохнуть / р - Отдохнуть и восстановить HP/MP', 'success');
-    addMessage('', 'info');
-    addMessage('ГОРЯЧИЕ КЛАВИШИ:', 'system');
-    addMessage('WASD или стрелки - перемещение (когда поле пустое)', 'success');
-    addMessage('↑/↓ - история команд', 'success');
-    addMessage('Tab - автодополнение (в разработке)', 'success');
+    addMessage('look / l / о - Осмотреть локацию', 'success');
+    addMessage('north/south/east/west / n/s/e/w / с/ю/в/з - Двигаться', 'success');
+    addMessage('attack / а - Атаковать', 'success');
+    addMessage('flee / б - Убежать из боя', 'success');
+    addMessage('use [предмет] - Использовать', 'success');
+    addMessage('inventory / i / инв - Инвентарь', 'success');
+    addMessage('stats / ст - Статистика', 'success');
+    addMessage('rest / р - Отдохнуть', 'success');
 }
 
 function look() {
@@ -595,83 +378,44 @@ function look() {
     addMessage(loc.desc, 'info');
     
     if (gameState.combat) {
-        addMessage(`⚔️ Вы в бою с: ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp}/${gameState.combat.enemy.maxHp})`, 'combat');
+        addMessage(`⚔️ Бой! ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp})`, 'combat');
     }
     
     if (loc.exits) {
-        const exits = Object.keys(loc.exits).map(d => {
-            const labels = { north: 'север', south: 'юг', east: 'восток', west: 'запад', up: 'вверх', down: 'вниз' };
-            return labels[d] || d;
-        }).join(', ');
+        const exits = Object.keys(loc.exits).map(d => ({ north: 'север', south: 'юг', east: 'восток', west: 'запад', up: 'вверх', down: 'вниз' }[d])).join(', ');
         addMessage(`Выходы: ${exits}`, 'info');
     }
 }
 
 function go(direction) {
     if (gameState.combat) {
-        addMessage('Вы не можете уйти во время боя! Используйте "flee" чтобы убежать.', 'error');
+        addMessage('Нельзя уйти во время боя!', 'error');
         return;
     }
     
     const loc = locations[gameState.player.location];
-    
     if (!loc.exits || !loc.exits[direction]) {
         addMessage('Вы не можете пойти в этом направлении.', 'error');
         return;
     }
     
-    const newLoc = loc.exits[direction];
-    gameState.player.location = newLoc;
+    gameState.player.location = loc.exits[direction];
+    const newLoc = locations[gameState.player.location];
+    gameState.player.x = newLoc.x;
+    gameState.player.y = newLoc.y;
     
-    const newLocData = locations[newLoc];
-    if (newLocData.x !== undefined) gameState.player.x = newLocData.x;
-    if (newLocData.y !== undefined) gameState.player.y = newLocData.y;
-    
-    const dirLabels = { north: 'север', south: 'юг', east: 'восток', west: 'запад', up: 'вверх', down: 'вниз' };
-    addMessage(`Вы идете на ${dirLabels[direction] || direction}...`, 'success');
+    addMessage(`Вы идете...`, 'success');
     look();
     updateUI();
 }
 
-function talk(npcName) {
-    const loc = locations[gameState.player.location];
-    
-    if (!loc.npcs || !loc.npcs.some(n => n.toLowerCase().includes(npcName))) {
-        addMessage('Здесь нет такого персонажа.', 'error');
-        return;
-    }
-    
-    const dialogues = {
-        'маркус': 'Приветствую, путник! У меня есть отличные товары. (Функция торговли пока в разработке)',
-        'джон': 'Стража всегда бдит! Будьте осторожны за городом.',
-        'элара': 'Да благословит вас свет! Могу исцелить ваши раны. (Наберите "rest" в храме)',
-        'боб': 'Добро пожаловать в "Золотой дракон"! Хотите эля? Или ищете работу?',
-        'томас': '♪ Я пою песни о великих героях... Может быть, и о вас когда-нибудь! ♪',
-        'торин': 'Лучшее оружие в городе! Приходите, когда будет золото.',
-        'воин': 'Я повидал многое в своих приключениях. Хочешь услышать историю?',
-        'капитан': 'За воротами опасно. Убедитесь, что готовы к бою.'
-    };
-    
-    for (const [key, dialogue] of Object.entries(dialogues)) {
-        if (npcName.includes(key)) {
-            addMessage(dialogue, 'success');
-            return;
-        }
-    }
-    
-    addMessage('Персонаж ничего не говорит.', 'info');
-}
-
 function attack(enemyName) {
-    // If already in combat, continue the fight
     if (gameState.combat) {
         performCombatRound();
         return;
     }
     
-    // Start new combat
     const loc = locations[gameState.player.location];
-    
     if (!loc.enemies || !loc.enemies.some(e => e.toLowerCase().includes(enemyName))) {
         addMessage('Здесь нет такого врага.', 'error');
         return;
@@ -681,7 +425,6 @@ function attack(enemyName) {
         'волк': { hp: 30, attack: 8, xp: 25, gold: 10 },
         'разбойник': { hp: 40, attack: 12, xp: 35, gold: 25 },
         'паук': { hp: 50, attack: 15, xp: 50, gold: 30 },
-        'темный': { hp: 45, attack: 14, xp: 45, gold: 20 },
         'скелет': { hp: 45, attack: 13, xp: 40, gold: 20 },
         'зомби': { hp: 60, attack: 10, xp: 45, gold: 15 }
     };
@@ -698,42 +441,34 @@ function attack(enemyName) {
     }
     
     if (!enemyData) {
-        originalName = loc.enemies.find(e => e.toLowerCase().includes(enemyName));
+        originalName = loc.enemies[0];
         enemyData = { name: originalName, hp: 35, maxHp: 35, attack: 10, xp: 30, gold: 15 };
     }
     
-    gameState.combat = { enemy: enemyData, originalName: originalName };
-    
-    addMessage(`⚔️ Вы вступаете в бой с: ${enemyData.name}!`, 'combat');
-    addMessage(`${enemyData.name} (HP: ${enemyData.hp}/${enemyData.maxHp})`, 'combat');
+    gameState.combat = { enemy: enemyData, originalName };
+    addMessage(`⚔️ Бой начался! ${enemyData.name}`, 'combat');
     updateUI();
 }
 
 function performCombatRound() {
-    if (!gameState.combat) return;
-    
     const enemy = gameState.combat.enemy;
     
-    // Player attacks
     const playerDamage = Math.max(1, gameState.player.attack - Math.floor(Math.random() * 5));
     enemy.hp -= playerDamage;
-    addMessage(`Вы наносите ${playerDamage} урона! (${enemy.name}: ${Math.max(0, enemy.hp)}/${enemy.maxHp} HP)`, 'combat');
+    addMessage(`Вы наносите ${playerDamage} урона! (${enemy.name}: ${Math.max(0, enemy.hp)}/${enemy.maxHp})`, 'combat');
     
-    // Check if enemy is dead
     if (enemy.hp <= 0) {
         addMessage(`${enemy.name} повержен!`, 'success');
         gameState.player.xp += enemy.xp;
         gameState.player.gold += enemy.gold;
-        addMessage(`Получено: ${enemy.xp} опыта и ${enemy.gold} золота`, 'success');
+        addMessage(`Получено: ${enemy.xp} опыта, ${enemy.gold} золота`, 'success');
         
-        // Remove enemy from location
         const loc = locations[gameState.player.location];
         const index = loc.enemies.indexOf(gameState.combat.originalName);
         if (index > -1) loc.enemies.splice(index, 1);
         
         gameState.combat = null;
         
-        // Check level up
         if (gameState.player.xp >= gameState.player.xpNeeded) {
             levelUp();
         }
@@ -742,16 +477,14 @@ function performCombatRound() {
         return;
     }
     
-    // Enemy attacks back
     const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense - Math.floor(Math.random() * 3));
     gameState.player.hp -= enemyDamage;
-    addMessage(`${enemy.name} наносит вам ${enemyDamage} урона! (Ваше HP: ${gameState.player.hp}/${gameState.player.maxHp})`, 'combat');
+    addMessage(`${enemy.name} наносит ${enemyDamage} урона! (Ваше HP: ${gameState.player.hp}/${gameState.player.maxHp})`, 'combat');
     
     if (gameState.player.hp <= 0) {
         gameState.player.hp = 0;
         gameState.combat = null;
-        addMessage('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
-        addMessage('Обновите страницу для начала новой игры.', 'system');
+        addMessage('ВЫ ПОГИБЛИ!', 'error');
     }
     
     updateUI();
@@ -763,33 +496,28 @@ function flee() {
         return;
     }
     
-    // 50% chance to flee
     if (Math.random() < 0.5) {
-        addMessage(`Вам удалось сбежать от ${gameState.combat.enemy.name}!`, 'success');
+        addMessage('Вам удалось сбежать!', 'success');
         gameState.combat = null;
         updateUI();
     } else {
         addMessage('Не удалось сбежать!', 'error');
-        // Enemy gets free attack
         const enemy = gameState.combat.enemy;
-        const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense - Math.floor(Math.random() * 3));
+        const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense);
         gameState.player.hp -= enemyDamage;
-        addMessage(`${enemy.name} наносит вам ${enemyDamage} урона при попытке бегства! (Ваше HP: ${gameState.player.hp}/${gameState.player.maxHp})`, 'combat');
+        addMessage(`${enemy.name} атакует! Урон: ${enemyDamage}`, 'combat');
         
         if (gameState.player.hp <= 0) {
             gameState.player.hp = 0;
             gameState.combat = null;
-            addMessage('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
-            addMessage('Обновите страницу для начала новой игры.', 'system');
+            addMessage('ВЫ ПОГИБЛИ!', 'error');
         }
-        
         updateUI();
     }
 }
 
 function useItem(itemName) {
     const item = gameState.inventory.find(i => i.name.toLowerCase().includes(itemName.toLowerCase()));
-    
     if (!item) {
         addMessage('У вас нет такого предмета.', 'error');
         return;
@@ -798,64 +526,13 @@ function useItem(itemName) {
     if (item.effect === 'heal') {
         const healAmount = Math.min(item.value, gameState.player.maxHp - gameState.player.hp);
         gameState.player.hp += healAmount;
-        addMessage(`Вы использовали ${item.name} и восстановили ${healAmount} HP.`, 'success');
-        
+        addMessage(`Использовано ${item.name}. Восстановлено ${healAmount} HP`, 'success');
         item.count--;
         if (item.count <= 0) {
-            const index = gameState.inventory.indexOf(item);
-            gameState.inventory.splice(index, 1);
-        }
-        
-        // If in combat, enemy attacks
-        if (gameState.combat) {
-            const enemy = gameState.combat.enemy;
-            const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense - Math.floor(Math.random() * 3));
-            gameState.player.hp -= enemyDamage;
-            addMessage(`${enemy.name} атакует пока вы лечитесь! Получено ${enemyDamage} урона.`, 'combat');
-            
-            if (gameState.player.hp <= 0) {
-                gameState.player.hp = 0;
-                gameState.combat = null;
-                addMessage('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
-                addMessage('Обновите страницу для начала новой игры.', 'system');
-            }
+            gameState.inventory.splice(gameState.inventory.indexOf(item), 1);
         }
     }
-    
     updateUI();
-}
-
-function take(objectName) {
-    const loc = locations[gameState.player.location];
-    
-    if (!loc.objects || !loc.objects.some(o => o.toLowerCase().includes(objectName))) {
-        addMessage('Здесь нет такого объекта.', 'error');
-        return;
-    }
-    
-    addMessage(`Вы взяли: ${objectName}`, 'success');
-}
-
-function examine(objectName) {
-    const descriptions = {
-        'фонтан': 'Красивый фонтан с чистой водой. В воде блестят монеты.',
-        'алтарь': 'Священный алтарь излучает теплый свет.',
-        'сундук': 'Старый деревянный сундук. Может быть, внутри что-то есть?',
-        'дверь': 'Массивная каменная дверь с древними рунами.',
-        'дерево': 'Огромное старое дерево. На коре вырезаны странные символы.',
-        'лагерь': 'Остатки костра и разбросанные вещи. Кто-то здесь был недавно.',
-        'травы': 'Целебные травы. Можно собрать для зелий.',
-        'факел': 'Горящий факел на стене. Освещает коридор тусклым светом.'
-    };
-    
-    for (const [key, desc] of Object.entries(descriptions)) {
-        if (objectName.includes(key)) {
-            addMessage(desc, 'info');
-            return;
-        }
-    }
-    
-    addMessage('Ничего особенного.', 'info');
 }
 
 function showInventory() {
@@ -863,9 +540,7 @@ function showInventory() {
     if (gameState.inventory.length === 0) {
         addMessage('Пусто', 'info');
     } else {
-        gameState.inventory.forEach(item => {
-            addMessage(`${item.name} x${item.count}`, 'info');
-        });
+        gameState.inventory.forEach(item => addMessage(`${item.name} x${item.count}`, 'info'));
     }
 }
 
@@ -883,19 +558,18 @@ function showStats() {
 
 function rest() {
     const loc = locations[gameState.player.location];
-    
     if (gameState.combat) {
-        addMessage('Невозможно отдохнуть во время боя!', 'error');
+        addMessage('Нельзя отдохнуть во время боя!', 'error');
         return;
     }
     
     if (loc.type === 'town') {
         gameState.player.hp = gameState.player.maxHp;
         gameState.player.mp = gameState.player.maxMp;
-        addMessage('Вы отдохнули и полностью восстановили HP и MP.', 'success');
+        addMessage('Вы отдохнули. HP и MP восстановлены.', 'success');
         updateUI();
     } else {
-        addMessage('Здесь слишком опасно для отдыха! Найдите безопасное место.', 'error');
+        addMessage('Здесь слишком опасно!', 'error');
     }
 }
 
@@ -909,46 +583,32 @@ function levelUp() {
     gameState.player.mp = gameState.player.maxMp;
     gameState.player.attack += 5;
     gameState.player.defense += 2;
-    
     addMessage('★ УРОВЕНЬ ПОВЫШЕН! ★', 'success');
-    addMessage(`Теперь вы ${gameState.player.level} уровня!`, 'success');
-    addMessage('Характеристики увеличены!', 'success');
+    addMessage(`Теперь ${gameState.player.level} уровень!`, 'success');
 }
 
-// Click on map to move
-function handleMapClick(e) {
-    if (gameState.combat) {
-        addMessage('Нельзя перемещаться во время боя!', 'error');
-        return;
-    }
-    
-    const canvas = document.getElementById('worldMap');
-    const rect = canvas.getBoundingClientRect();
-    const tileSize = 30;
-    const x = Math.floor((e.clientX - rect.left) / tileSize);
-    const y = Math.floor((e.clientY - rect.top) / tileSize);
-    
-    const dx = x - gameState.player.x;
-    const dy = y - gameState.player.y;
-    
-    // Only allow moving to adjacent tiles
-    if (Math.abs(dx) + Math.abs(dy) !== 1) {
-        addMessage('Можно ходить только на соседние клетки.', 'error');
-        return;
-    }
-    
-    const loc = locations[gameState.player.location];
-    let direction = null;
-    
-    if (dy === -1) direction = 'north';
-    else if (dy === 1) direction = 'south';
-    else if (dx === 1) direction = 'east';
-    else if (dx === -1) direction = 'west';
-    
-    if (direction && loc.exits && loc.exits[direction]) {
-        go(direction);
+// Save/Load
+function saveGame() {
+    localStorage.setItem('rpg_save', JSON.stringify(gameState));
+    addMessage('💾 Игра сохранена!', 'success');
+}
+
+function loadGame() {
+    const data = localStorage.getItem('rpg_save');
+    if (data) {
+        Object.assign(gameState, JSON.parse(data));
+        addMessage('📂 Игра загружена!', 'success');
+        updateUI();
+        look();
     } else {
-        addMessage('Туда нельзя пройти.', 'error');
+        addMessage('Нет сохраненной игры!', 'error');
+    }
+}
+
+function resetGame() {
+    if (confirm('Вы уверены? Весь прогресс будет потерян!')) {
+        localStorage.removeItem('rpg_save');
+        location.reload();
     }
 }
 
@@ -956,7 +616,6 @@ function handleMapClick(e) {
 const commandInput = document.getElementById('commandInput');
 
 commandInput.addEventListener('keydown', (e) => {
-    // Command history
     if (e.key === 'ArrowUp') {
         e.preventDefault();
         if (gameState.historyIndex > 0) {
@@ -974,15 +633,8 @@ commandInput.addEventListener('keydown', (e) => {
         }
     }
     
-    // Movement with WASD/arrows when input is empty
     if (commandInput.value === '' && !gameState.combat) {
-        const keyMap = {
-            'ArrowUp': 'north', 'w': 'north', 'ц': 'north',
-            'ArrowDown': 'south', 's': 'south', 'ы': 'south',
-            'ArrowLeft': 'west', 'a': 'west', 'ф': 'west',
-            'ArrowRight': 'east', 'd': 'east', 'в': 'east'
-        };
-        
+        const keyMap = { 'ArrowUp': 'north', 'w': 'north', 'ArrowDown': 'south', 's': 'south', 'ArrowLeft': 'west', 'a': 'west', 'ArrowRight': 'east', 'd': 'east' };
         const dir = keyMap[e.key.toLowerCase()];
         if (dir) {
             e.preventDefault();
@@ -992,11 +644,9 @@ commandInput.addEventListener('keydown', (e) => {
 });
 
 commandInput.addEventListener('keypress', (e) => {
-    if (e.key === 'Enter') {
-        if (commandInput.value.trim()) {
-            executeCommand(commandInput.value);
-            commandInput.value = '';
-        }
+    if (e.key === 'Enter' && commandInput.value.trim()) {
+        executeCommand(commandInput.value);
+        commandInput.value = '';
     }
 });
 
@@ -1007,11 +657,12 @@ document.getElementById('sendBtn').addEventListener('click', () => {
     }
 });
 
-document.getElementById('worldMap').addEventListener('click', handleMapClick);
+document.getElementById('btnSave').addEventListener('click', saveGame);
+document.getElementById('btnLoad').addEventListener('click', loadGame);
+document.getElementById('btnReset').addEventListener('click', resetGame);
 
-// Initialize game
+// Initialize
 initWorldMap();
 updateUI();
 look();
 addMessage('Добро пожаловать в игру! Наберите "help" для списка команд.', 'system');
-addMessage('Используйте кнопки команд, WASD/стрелки для перемещения, или кликайте по карте.', 'system');
