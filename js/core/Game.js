@@ -1,99 +1,125 @@
-/**
- * Main game controller following Singleton pattern
- * Manages game state, systems coordination, and core game loop
- */
-class Game {
+// core/Game.js - Главный игровой контроллер
+import { GameState } from './GameState.js';
+import { EventBus } from './EventBus.js';
+import { UIManager } from '../ui/UIManager.js';
+import { CombatSystem } from '../systems/CombatSystem.js';
+import { MovementSystem } from '../systems/MovementSystem.js';
+import { InventorySystem } from '../systems/InventorySystem.js';
+import { ProgressionSystem } from '../systems/ProgressionSystem.js';
+import { CommandParser } from '../commands/CommandParser.js';
+import { WorldMap } from '../world/WorldMap.js';
+import { StorageManager } from '../utils/storage.js';
+import { LookCommand } from '../commands/commands/LookCommand.js';
+
+export class Game {
     constructor() {
-        if (Game.instance) {
-            return Game.instance;
-        }
+        this.eventBus = new EventBus();
+        this.state = new GameState(this.eventBus);
+        this.uiManager = new UIManager(this.eventBus);
+        this.combatSystem = new CombatSystem(this.eventBus);
+        this.movementSystem = new MovementSystem(this.eventBus);
+        this.inventorySystem = new InventorySystem(this.eventBus);
+        this.progressionSystem = new ProgressionSystem(this.eventBus);
+        this.commandParser = new CommandParser();
         
-        this.player = null;
-        this.worldMap = null;
-        this.locationManager = null;
-        this.combatSystem = null;
-        this.commandRegistry = null;
-        this.ui = null;
         this.initialized = false;
-        
-        Game.instance = this;
     }
-    
-    /**
-     * Initialize all game systems
-     */
-    init() {
+
+    async init() {
         if (this.initialized) return;
         
-        this.player = new Player('Герой', { x: 5, y: 5 });
-        this.worldMap = new WorldMap(10, 10);
-        this.locationManager = new LocationManager();
-        this.combatSystem = new CombatSystem(this.player);
-        this.commandRegistry = new CommandRegistry();
-        this.ui = new GameUI(this);
-        
-        // Initialize world
-        this.worldMap.init(this.locationManager.getAllLocations());
-        this.player.setLocation('town_square');
-        
-        // Setup observers
-        this.player.addObserver(this.ui);
-        this.combatSystem.addObserver(this.ui);
-        
-        // Setup command handlers
-        this.setupCommands();
+        await this.loadGameData();
+        this.setupEventListeners();
+        this.uiManager.init();
+        this.startGame();
         
         this.initialized = true;
-        this.ui.init();
-        this.ui.showWelcomeMessage();
     }
-    
-    /**
-     * Register all game commands
-     */
-    setupCommands() {
-        const registry = this.commandRegistry;
+
+    async loadGameData() {
+        const worldMap = new WorldMap();
+        await worldMap.init();
+        this.state.setWorldMap(worldMap);
+    }
+
+    setupEventListeners() {
+        this.eventBus.on('command:execute', (cmd) => this.handleCommand(cmd));
+        this.eventBus.on('player:died', () => this.handleGameOver());
+        this.eventBus.on('player:levelup', (data) => this.handleLevelUp(data));
+    }
+
+    handleCommand(commandStr) {
+        if (!commandStr || !commandStr.trim()) return;
         
-        registry.register('help', new HelpCommand(this));
-        registry.register('look', new LookCommand(this));
-        registry.register('go', new MoveCommand(this));
-        registry.register('talk', new TalkCommand(this));
-        registry.register('attack', new AttackCommand(this));
-        registry.register('flee', new FleeCommand(this));
-        registry.register('use', new UseItemCommand(this));
-        registry.register('examine', new ExamineCommand(this));
-        registry.register('inventory', new InventoryCommand(this));
-        registry.register('stats', new StatsCommand(this));
-        registry.register('rest', new RestCommand(this));
-    }
-    
-    /**
-     * Execute a command from user input
-     * @param {string} input - Raw user input
-     */
-    executeCommand(input) {
-        const parsed = this.commandRegistry.parse(input);
-        if (!parsed) {
-            this.ui.addMessage('Неизвестная команда. Наберите "help" для списка команд.', 'error');
+        this.state.addToHistory(commandStr);
+        this.eventBus.emit('message:info', '> ' + commandStr);
+        
+        const command = this.commandParser.parse(commandStr);
+        if (!command) {
+            this.eventBus.emit('message:error', 'Неизвестная команда. Наберите "help" для списка команд.');
             return;
         }
         
-        parsed.command.execute(parsed.args);
+        try {
+            command.execute(this.state, this.eventBus);
+        } catch (error) {
+            console.error('Command execution error:', error);
+            this.eventBus.emit('message:error', 'Ошибка выполнения команды.');
+        }
     }
-    
-    /**
-     * Get current location object
-     * @returns {Location}
-     */
-    getCurrentLocation() {
-        return this.locationManager.getLocation(this.player.location);
+
+    startGame() {
+        this.eventBus.emit('game:started');
+        this.eventBus.emit('message:system', 'Добро пожаловать в игру! Наберите "help" для списка команд.');
+        this.eventBus.emit('message:system', 'Используйте кнопки команд, WASD/стрелки для перемещения, или кликайте по карте.');
+        
+        const lookCmd = new LookCommand();
+        lookCmd.execute(this.state, this.eventBus);
     }
-    
-    /**
-     * Check if player is currently in combat
-     * @returns {boolean}
-     */
-    isInCombat() {
-        return this.combatSystem.isActive();
+
+    handleGameOver() {
+        this.eventBus.emit('message:error', 'ИГРА ОКОНЧЕНА!');
+        this.eventBus.emit('message:system', 'Обновите страницу или нажмите Reset для новой игры.');
+        this.uiManager.disableInput();
+    }
+
+    handleLevelUp(data) {
+        this.eventBus.emit('message:success', `★ УРОВЕНЬ ПОВЫШЕН! Теперь вы ${data.level} уровня!`);
+        this.eventBus.emit('message:success', 'Характеристики увеличены!');
+    }
+
+    save() {
+        try {
+            const saveData = this.state.serialize();
+            StorageManager.save('rpg_save', saveData);
+            this.eventBus.emit('message:system', '💾 Игра сохранена!');
+        } catch (error) {
+            console.error('Save error:', error);
+            this.eventBus.emit('message:error', 'Ошибка сохранения!');
+        }
+    }
+
+    load() {
+        try {
+            const saveData = StorageManager.load('rpg_save');
+            if (saveData) {
+                this.state.deserialize(saveData);
+                this.eventBus.emit('message:system', '📂 Игра загружена!');
+                this.eventBus.emit('ui:refresh');
+                
+                const lookCmd = new LookCommand();
+                lookCmd.execute(this.state, this.eventBus);
+            } else {
+                this.eventBus.emit('message:error', 'Сохранение не найдено!');
+            }
+        } catch (error) {
+            console.error('Load error:', error);
+            this.eventBus.emit('message:error', 'Ошибка загрузки!');
+        }
+    }
+
+    reset() {
+        StorageManager.clear();
+        window.location.reload();
     }
 }

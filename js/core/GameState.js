@@ -1,29 +1,10 @@
-import { EventEmitter } from './EventEmitter.js';
+// core/GameState.js - Управление состоянием игры
+import { Player } from '../entities/Player.js';
 
-/**
- * GameState - Singleton паттерн для управления состоянием игры
- */
-export class GameState extends EventEmitter {
-    static instance = null;
-
-    constructor() {
-        if (GameState.instance) {
-            return GameState.instance;
-        }
-        super();
-        this.initializeState();
-        GameState.instance = this;
-    }
-
-    static getInstance() {
-        if (!GameState.instance) {
-            GameState.instance = new GameState();
-        }
-        return GameState.instance;
-    }
-
-    initializeState() {
-        this.player = {
+export class GameState {
+    constructor(eventBus) {
+        this.eventBus = eventBus;
+        this.player = new Player({
             name: 'Герой',
             hp: 100,
             maxHp: 100,
@@ -32,94 +13,112 @@ export class GameState extends EventEmitter {
             gold: 100,
             level: 1,
             xp: 0,
-            xpNeeded: 100,
             attack: 10,
-            defense: 5,
-            x: 5,
-            y: 5,
-            location: 'town_square'
-        };
-
-        this.inventory = [
-            { name: 'Зелье здоровья', type: 'potion', effect: 'heal', value: 30, count: 3 },
-            { name: 'Хлеб', type: 'food', effect: 'heal', value: 10, count: 5 }
-        ];
-
-        this.equipment = {
-            weapon: null,
-            armor: null,
-            helmet: null
-        };
-
+            defense: 5
+        });
+        
+        this.currentLocation = null;
+        this.worldMap = null;
         this.combat = null;
         this.commandHistory = [];
         this.historyIndex = -1;
     }
 
-    updatePlayer(updates) {
-        Object.assign(this.player, updates);
-        this.emit('player:updated', this.player);
+    getPlayer() {
+        return this.player;
     }
 
-    addToInventory(item) {
-        const existing = this.inventory.find(i => i.name === item.name);
-        if (existing && item.count) {
-            existing.count += item.count;
-        } else {
-            this.inventory.push(item);
-        }
-        this.emit('inventory:updated', this.inventory);
+    getCurrentLocation() {
+        return this.currentLocation;
     }
 
-    removeFromInventory(itemName) {
-        const index = this.inventory.findIndex(i => i.name === itemName);
-        if (index > -1) {
-            this.inventory.splice(index, 1);
-            this.emit('inventory:updated', this.inventory);
-        }
+    setLocation(location) {
+        this.currentLocation = location;
+        this.player.setPosition(location.x, location.y);
+        this.eventBus.emit('location:changed', location);
     }
 
-    startCombat(enemy, originalName) {
-        this.combat = { enemy, originalName };
-        this.emit('combat:started', this.combat);
+    setWorldMap(worldMap) {
+        this.worldMap = worldMap;
+        const startLocation = worldMap.getLocation('town_square');
+        this.setLocation(startLocation);
+    }
+
+    getWorldMap() {
+        return this.worldMap;
+    }
+
+    isInCombat() {
+        return this.combat !== null;
+    }
+
+    startCombat(combat) {
+        this.combat = combat;
+        this.eventBus.emit('combat:started', combat);
     }
 
     endCombat() {
         this.combat = null;
-        this.emit('combat:ended');
+        this.eventBus.emit('combat:ended');
     }
 
-    save() {
-        const saveData = {
-            player: this.player,
-            inventory: this.inventory,
-            equipment: this.equipment,
-            timestamp: Date.now()
-        };
-        localStorage.setItem('rpg_save', JSON.stringify(saveData));
-        return true;
+    getCombat() {
+        return this.combat;
     }
 
-    load() {
-        const saveData = localStorage.getItem('rpg_save');
-        if (!saveData) return false;
-        
-        try {
-            const data = JSON.parse(saveData);
-            this.player = data.player;
-            this.inventory = data.inventory;
-            this.equipment = data.equipment;
-            this.emit('game:loaded');
-            return true;
-        } catch (error) {
-            console.error('Error loading save:', error);
-            return false;
+    addToHistory(command) {
+        if (this.commandHistory[this.commandHistory.length - 1] !== command) {
+            this.commandHistory.push(command);
         }
+        this.historyIndex = this.commandHistory.length;
     }
 
-    reset() {
-        localStorage.removeItem('rpg_save');
-        this.initializeState();
-        this.emit('game:reset');
+    getPreviousCommand() {
+        if (this.historyIndex > 0) {
+            this.historyIndex--;
+            return this.commandHistory[this.historyIndex];
+        }
+        return null;
+    }
+
+    getNextCommand() {
+        if (this.historyIndex < this.commandHistory.length - 1) {
+            this.historyIndex++;
+            return this.commandHistory[this.historyIndex];
+        }
+        this.historyIndex = this.commandHistory.length;
+        return '';
+    }
+
+    serialize() {
+        return {
+            player: this.player.serialize(),
+            locationId: this.currentLocation?.id || 'town_square',
+            combat: this.combat ? {
+                enemyData: this.combat.enemy.serialize()
+            } : null,
+            timestamp: Date.now(),
+            version: '2.0'
+        };
+    }
+
+    deserialize(data) {
+        if (!data || data.version !== '2.0') {
+            throw new Error('Incompatible save format');
+        }
+        
+        this.player.deserialize(data.player);
+        
+        if (this.worldMap) {
+            const location = this.worldMap.getLocation(data.locationId);
+            if (location) {
+                this.setLocation(location);
+            }
+        }
+        
+        if (data.combat) {
+            // Восстановление боя будет реализовано позже
+            console.log('Combat state not fully restored yet');
+        }
     }
 }
