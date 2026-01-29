@@ -25,7 +25,7 @@ const gameState = {
         armor: null,
         helmet: null
     },
-    combat: null,
+    combat: null, // { enemy: {...}, originalName: '...' }
     commandHistory: [],
     historyIndex: -1
 };
@@ -54,7 +54,8 @@ const COMMANDS = {
     examine: { ru: ['осмотреть', 'examine', 'х'], en: ['examine', 'x'], desc: 'Осмотреть объект' },
     inventory: { ru: ['инвентарь', 'inventory', 'i', 'инв'], en: ['inventory', 'i'], desc: 'Инвентарь' },
     stats: { ru: ['статистика', 'stats', 'ст'], en: ['stats'], desc: 'Статистика' },
-    rest: { ru: ['отдохнуть', 'rest', 'р'], en: ['rest'], desc: 'Отдохнуть' }
+    rest: { ru: ['отдохнуть', 'rest', 'р'], en: ['rest'], desc: 'Отдохнуть' },
+    flee: { ru: ['бежать', 'flee', 'убежать', 'б'], en: ['flee', 'run'], desc: 'Убежать из боя' }
 };
 
 // Direction mappings
@@ -235,6 +236,24 @@ function getSuggestedCommands() {
     const loc = locations[gameState.player.location];
     const suggestions = [];
     
+    // If in combat, show combat commands
+    if (gameState.combat) {
+        suggestions.push({ label: '⚔️ Атаковать', command: 'attack', category: 'combat', style: 'danger' });
+        suggestions.push({ label: '🏃 Убежать', command: 'flee', category: 'combat' });
+        suggestions.push({ label: '🎒 Инвентарь', command: 'inventory', category: 'util' });
+        
+        // Show usable items
+        gameState.inventory.filter(i => i.effect === 'heal').forEach(item => {
+            suggestions.push({
+                label: `💊 ${item.name}`,
+                command: `use ${item.name}`,
+                category: 'combat'
+            });
+        });
+        
+        return suggestions;
+    }
+    
     // Movement commands
     if (loc.exits) {
         for (const [dir, targetLoc] of Object.entries(loc.exits)) {
@@ -342,7 +361,13 @@ function updateUI() {
     const loc = locations[gameState.player.location];
     if (loc) {
         document.getElementById('locationName').textContent = loc.name;
-        document.getElementById('locationDesc').textContent = loc.desc;
+        
+        // Show combat status in description if in combat
+        if (gameState.combat) {
+            document.getElementById('locationDesc').textContent = `⚔️ БОЙ! Враг: ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp}/${gameState.combat.enemy.maxHp})`;
+        } else {
+            document.getElementById('locationDesc').textContent = loc.desc;
+        }
         
         const npcsDiv = document.getElementById('npcs');
         npcsDiv.innerHTML = '';
@@ -360,7 +385,14 @@ function updateUI() {
         
         const enemiesDiv = document.getElementById('enemies');
         enemiesDiv.innerHTML = '';
-        if (loc.enemies && loc.enemies.length > 0) {
+        if (gameState.combat) {
+            const div = document.createElement('div');
+            div.className = 'enemy';
+            div.textContent = `⚔️ ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp})`;
+            div.style.borderColor = '#ff0000';
+            div.style.backgroundColor = '#330000';
+            enemiesDiv.appendChild(div);
+        } else if (loc.enemies && loc.enemies.length > 0) {
             loc.enemies.forEach(enemy => {
                 const div = document.createElement('div');
                 div.className = 'enemy';
@@ -482,6 +514,12 @@ function executeCommand(cmd) {
         case 'а':
             attack(args);
             break;
+        case 'flee':
+        case 'бежать':
+        case 'убежать':
+        case 'б':
+            flee();
+            break;
         case 'use':
         case 'использовать':
         case 'и':
@@ -536,7 +574,8 @@ function showHelp() {
     addMessage('look / осмотреться / l / о - Осмотреть локацию', 'success');
     addMessage('north/south/east/west/up/down / n/s/e/w/u/d / с/ю/в/з/вв/вн - Двигаться', 'success');
     addMessage('talk [имя] / говорить / т - Поговорить с NPC', 'success');
-    addMessage('attack [враг] / атаковать / а - Атаковать врага', 'success');
+    addMessage('attack [враг] / атаковать / а - Атаковать врага (или продолжить бой)', 'success');
+    addMessage('flee / бежать / б - Убежать из боя', 'success');
     addMessage('use [предмет] / использовать / и - Использовать предмет', 'success');
     addMessage('take [объект] / взять - Взять объект', 'success');
     addMessage('examine [объект] / осмотреть / х - Осмотреть объект', 'success');
@@ -555,6 +594,10 @@ function look() {
     addMessage(`Вы находитесь: ${loc.name}`, 'success');
     addMessage(loc.desc, 'info');
     
+    if (gameState.combat) {
+        addMessage(`⚔️ Вы в бою с: ${gameState.combat.enemy.name} (HP: ${gameState.combat.enemy.hp}/${gameState.combat.enemy.maxHp})`, 'combat');
+    }
+    
     if (loc.exits) {
         const exits = Object.keys(loc.exits).map(d => {
             const labels = { north: 'север', south: 'юг', east: 'восток', west: 'запад', up: 'вверх', down: 'вниз' };
@@ -565,6 +608,11 @@ function look() {
 }
 
 function go(direction) {
+    if (gameState.combat) {
+        addMessage('Вы не можете уйти во время боя! Используйте "flee" чтобы убежать.', 'error');
+        return;
+    }
+    
     const loc = locations[gameState.player.location];
     
     if (!loc.exits || !loc.exits[direction]) {
@@ -615,6 +663,13 @@ function talk(npcName) {
 }
 
 function attack(enemyName) {
+    // If already in combat, continue the fight
+    if (gameState.combat) {
+        performCombatRound();
+        return;
+    }
+    
+    // Start new combat
     const loc = locations[gameState.player.location];
     
     if (!loc.enemies || !loc.enemies.some(e => e.toLowerCase().includes(enemyName))) {
@@ -626,37 +681,59 @@ function attack(enemyName) {
         'волк': { hp: 30, attack: 8, xp: 25, gold: 10 },
         'разбойник': { hp: 40, attack: 12, xp: 35, gold: 25 },
         'паук': { hp: 50, attack: 15, xp: 50, gold: 30 },
+        'темный': { hp: 45, attack: 14, xp: 45, gold: 20 },
         'скелет': { hp: 45, attack: 13, xp: 40, gold: 20 },
         'зомби': { hp: 60, attack: 10, xp: 45, gold: 15 }
     };
     
-    let enemy = null;
+    let enemyData = null;
+    let originalName = null;
+    
     for (const [key, stats] of Object.entries(enemyStats)) {
         if (enemyName.includes(key)) {
-            enemy = { name: loc.enemies.find(e => e.toLowerCase().includes(key)), ...stats };
+            originalName = loc.enemies.find(e => e.toLowerCase().includes(key));
+            enemyData = { name: originalName, ...stats, maxHp: stats.hp };
             break;
         }
     }
     
-    if (!enemy) {
-        enemy = { name: enemyName, hp: 35, attack: 10, xp: 30, gold: 15 };
+    if (!enemyData) {
+        originalName = loc.enemies.find(e => e.toLowerCase().includes(enemyName));
+        enemyData = { name: originalName, hp: 35, maxHp: 35, attack: 10, xp: 30, gold: 15 };
     }
     
-    addMessage(`Вы атакуете ${enemy.name}!`, 'combat');
+    gameState.combat = { enemy: enemyData, originalName: originalName };
     
+    addMessage(`⚔️ Вы вступаете в бой с: ${enemyData.name}!`, 'combat');
+    addMessage(`${enemyData.name} (HP: ${enemyData.hp}/${enemyData.maxHp})`, 'combat');
+    updateUI();
+}
+
+function performCombatRound() {
+    if (!gameState.combat) return;
+    
+    const enemy = gameState.combat.enemy;
+    
+    // Player attacks
     const playerDamage = Math.max(1, gameState.player.attack - Math.floor(Math.random() * 5));
     enemy.hp -= playerDamage;
-    addMessage(`Вы наносите ${playerDamage} урона!`, 'combat');
+    addMessage(`Вы наносите ${playerDamage} урона! (${enemy.name}: ${Math.max(0, enemy.hp)}/${enemy.maxHp} HP)`, 'combat');
     
+    // Check if enemy is dead
     if (enemy.hp <= 0) {
         addMessage(`${enemy.name} повержен!`, 'success');
         gameState.player.xp += enemy.xp;
         gameState.player.gold += enemy.gold;
         addMessage(`Получено: ${enemy.xp} опыта и ${enemy.gold} золота`, 'success');
         
-        const index = loc.enemies.findIndex(e => e.toLowerCase().includes(enemyName));
+        // Remove enemy from location
+        const loc = locations[gameState.player.location];
+        const index = loc.enemies.indexOf(gameState.combat.originalName);
         if (index > -1) loc.enemies.splice(index, 1);
         
+        gameState.combat = null;
+        
+        // Check level up
         if (gameState.player.xp >= gameState.player.xpNeeded) {
             levelUp();
         }
@@ -665,17 +742,49 @@ function attack(enemyName) {
         return;
     }
     
+    // Enemy attacks back
     const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense - Math.floor(Math.random() * 3));
     gameState.player.hp -= enemyDamage;
-    addMessage(`${enemy.name} наносит вам ${enemyDamage} урона!`, 'combat');
+    addMessage(`${enemy.name} наносит вам ${enemyDamage} урона! (Ваше HP: ${gameState.player.hp}/${gameState.player.maxHp})`, 'combat');
     
     if (gameState.player.hp <= 0) {
         gameState.player.hp = 0;
+        gameState.combat = null;
         addMessage('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
         addMessage('Обновите страницу для начала новой игры.', 'system');
     }
     
     updateUI();
+}
+
+function flee() {
+    if (!gameState.combat) {
+        addMessage('Вы не в бою.', 'error');
+        return;
+    }
+    
+    // 50% chance to flee
+    if (Math.random() < 0.5) {
+        addMessage(`Вам удалось сбежать от ${gameState.combat.enemy.name}!`, 'success');
+        gameState.combat = null;
+        updateUI();
+    } else {
+        addMessage('Не удалось сбежать!', 'error');
+        // Enemy gets free attack
+        const enemy = gameState.combat.enemy;
+        const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense - Math.floor(Math.random() * 3));
+        gameState.player.hp -= enemyDamage;
+        addMessage(`${enemy.name} наносит вам ${enemyDamage} урона при попытке бегства! (Ваше HP: ${gameState.player.hp}/${gameState.player.maxHp})`, 'combat');
+        
+        if (gameState.player.hp <= 0) {
+            gameState.player.hp = 0;
+            gameState.combat = null;
+            addMessage('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
+            addMessage('Обновите страницу для начала новой игры.', 'system');
+        }
+        
+        updateUI();
+    }
 }
 
 function useItem(itemName) {
@@ -695,6 +804,21 @@ function useItem(itemName) {
         if (item.count <= 0) {
             const index = gameState.inventory.indexOf(item);
             gameState.inventory.splice(index, 1);
+        }
+        
+        // If in combat, enemy attacks
+        if (gameState.combat) {
+            const enemy = gameState.combat.enemy;
+            const enemyDamage = Math.max(1, enemy.attack - gameState.player.defense - Math.floor(Math.random() * 3));
+            gameState.player.hp -= enemyDamage;
+            addMessage(`${enemy.name} атакует пока вы лечитесь! Получено ${enemyDamage} урона.`, 'combat');
+            
+            if (gameState.player.hp <= 0) {
+                gameState.player.hp = 0;
+                gameState.combat = null;
+                addMessage('ВЫ ПОГИБЛИ! Игра окончена.', 'error');
+                addMessage('Обновите страницу для начала новой игры.', 'system');
+            }
         }
     }
     
@@ -760,6 +884,11 @@ function showStats() {
 function rest() {
     const loc = locations[gameState.player.location];
     
+    if (gameState.combat) {
+        addMessage('Невозможно отдохнуть во время боя!', 'error');
+        return;
+    }
+    
     if (loc.type === 'town') {
         gameState.player.hp = gameState.player.maxHp;
         gameState.player.mp = gameState.player.maxMp;
@@ -788,6 +917,11 @@ function levelUp() {
 
 // Click on map to move
 function handleMapClick(e) {
+    if (gameState.combat) {
+        addMessage('Нельзя перемещаться во время боя!', 'error');
+        return;
+    }
+    
     const canvas = document.getElementById('worldMap');
     const rect = canvas.getBoundingClientRect();
     const tileSize = 30;
@@ -841,7 +975,7 @@ commandInput.addEventListener('keydown', (e) => {
     }
     
     // Movement with WASD/arrows when input is empty
-    if (commandInput.value === '') {
+    if (commandInput.value === '' && !gameState.combat) {
         const keyMap = {
             'ArrowUp': 'north', 'w': 'north', 'ц': 'north',
             'ArrowDown': 'south', 's': 'south', 'ы': 'south',
