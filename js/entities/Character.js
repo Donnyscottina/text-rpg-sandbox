@@ -1,85 +1,93 @@
-/**
- * Character - базовый класс для персонажей
- */
-import { Entity } from './Entity.js';
+// js/entities/Character.js - Базовый класс персонажа
+export class Character {
+    constructor(config) {
+        this.name = config.name;
+        this.maxHp = config.maxHp || 100;
+        this.hp = config.hp !== undefined ? config.hp : this.maxHp;
+        this.maxMp = config.maxMp || 50;
+        this.mp = config.mp !== undefined ? config.mp : this.maxMp;
+        this.attack = config.attack || 10;
+        this.defense = config.defense || 5;
+    }
 
-export class Character extends Entity {
-    constructor(config = {}) {
-        super(config.id, config.name);
+    takeDamage(amount) {
+        const damageReduction = Math.floor(Math.random() * this.defense);
+        const actualDamage = Math.max(1, amount - damageReduction);
+        this.hp = Math.max(0, this.hp - actualDamage);
         
-        // Характеристики
-        this.stats = {
-            hp: config.hp || 100,
-            maxHp: config.maxHp || 100,
-            mp: config.mp || 50,
-            maxMp: config.maxMp || 50,
-            attack: config.attack || 10,
-            defense: config.defense || 5,
-            level: config.level || 1,
-            xp: config.xp || 0,
-            xpNeeded: config.xpNeeded || 100
+        return {
+            damage: actualDamage,
+            isDead: this.isDead()
         };
     }
 
-    /**
-     * Получение урона
-     */
-    takeDamage(amount) {
-        this.stats.hp = Math.max(0, this.stats.hp - amount);
-        return this.stats.hp <= 0;
-    }
-
-    /**
-     * Восстановление здоровья
-     */
     heal(amount) {
-        const actualHeal = Math.min(amount, this.stats.maxHp - this.stats.hp);
-        this.stats.hp += actualHeal;
+        const actualHeal = Math.min(amount, this.maxHp - this.hp);
+        this.hp = Math.min(this.maxHp, this.hp + amount);
         return actualHeal;
     }
 
-    /**
-     * Использование маны
-     */
-    useMana(amount) {
-        if (this.stats.mp >= amount) {
-            this.stats.mp -= amount;
-            return true;
-        }
-        return false;
+    restoreMp(amount) {
+        const actualRestore = Math.min(amount, this.maxMp - this.mp);
+        this.mp = Math.min(this.maxMp, this.mp + amount);
+        return actualRestore;
     }
 
-    /**
-     * Восстановление маны
-     */
-    restoreMana(amount) {
-        this.stats.mp = Math.min(this.stats.maxMp, this.stats.mp + amount);
+    useMp(amount) {
+        if (this.mp < amount) return false;
+        this.mp -= amount;
+        return true;
     }
 
-    /**
-     * Полное восстановление
-     */
-    fullRestore() {
-        this.stats.hp = this.stats.maxHp;
-        this.stats.mp = this.stats.maxMp;
+    isDead() {
+        return this.hp <= 0;
     }
 
-    /**
-     * Проверка жив ли персонаж
-     */
-    isAlive() {
-        return this.stats.hp > 0;
+    isFullHealth() {
+        return this.hp === this.maxHp;
     }
 
-    /**
-     * Сериализация
-     */
+    calculateAttackDamage() {
+        const variance = Math.floor(Math.random() * 5);
+        return Math.max(1, this.attack - variance);
+    }
+
+    rest() {
+        this.hp = this.maxHp;
+        this.mp = this.maxMp;
+    }
+
+    getStats() {
+        return {
+            name: this.name,
+            hp: this.hp,
+            maxHp: this.maxHp,
+            mp: this.mp,
+            maxMp: this.maxMp,
+            attack: this.attack,
+            defense: this.defense
+        };
+    }
+
     serialize() {
         return {
-            id: this.id,
             name: this.name,
-            stats: { ...this.stats },
-            tags: Array.from(this.tags)
+            hp: this.hp,
+            maxHp: this.maxHp,
+            mp: this.mp,
+            maxMp: this.maxMp,
+            attack: this.attack,
+            defense: this.defense
         };
+    }
+
+    deserialize(data) {
+        this.name = data.name;
+        this.hp = data.hp;
+        this.maxHp = data.maxHp;
+        this.mp = data.mp;
+        this.maxMp = data.maxMp;
+        this.attack = data.attack;
+        this.defense = data.defense;
     }
 }

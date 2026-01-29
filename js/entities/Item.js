@@ -1,61 +1,40 @@
-/**
- * Item - класс предмета
- */
-import { Entity } from './Entity.js';
-
-export class Item extends Entity {
-    constructor(config = {}) {
-        super(config.id, config.name);
-        
-        this.type = config.type || 'misc';
-        this.effect = config.effect || null;
+// js/entities/Item.js - Класс предмета
+export class Item {
+    constructor(config) {
+        this.name = config.name;
+        this.type = config.type; // potion, food, weapon, armor, quest
+        this.effect = config.effect; // heal, damage, buff, quest
         this.value = config.value || 0;
-        this.count = config.count || 1;
+        this.description = config.description || '';
         this.stackable = config.stackable !== false;
     }
 
-    /**
-     * Добавление количества
-     */
-    addCount(amount = 1) {
-        if (!this.stackable) return false;
-        this.count += amount;
-        return true;
+    use(target) {
+        switch (this.effect) {
+            case 'heal':
+                return target.heal(this.value);
+            case 'mp_restore':
+                return target.restoreMp(this.value);
+            default:
+                return 0;
+        }
     }
 
-    /**
-     * Уменьшение количества
-     */
-    removeCount(amount = 1) {
-        this.count = Math.max(0, this.count - amount);
-        return this.count;
+    canUse() {
+        return ['heal', 'mp_restore', 'buff'].includes(this.effect);
     }
 
-    /**
-     * Проверка наличия
-     */
-    isEmpty() {
-        return this.count <= 0;
-    }
-
-    /**
-     * Сериализация
-     */
     serialize() {
         return {
-            id: this.id,
             name: this.name,
             type: this.type,
             effect: this.effect,
             value: this.value,
-            count: this.count,
+            description: this.description,
             stackable: this.stackable
         };
     }
 
-    /**
-     * Десериализация
-     */
     static deserialize(data) {
         return new Item(data);
     }
