@@ -1,15 +1,21 @@
-/**
- * WorldMap - класс для управления картой мира
- */
+// js/world/WorldMap.js - Карта мира
+import { Location } from './Location.js';
+import { LOCATIONS_DATA } from '../config/locationsData.js';
+
 export class WorldMap {
-    constructor(width = 10, height = 10) {
-        this.width = width;
-        this.height = height;
+    constructor() {
+        this.width = 10;
+        this.height = 10;
         this.tiles = [];
-        this.initialize();
+        this.locations = new Map();
     }
 
-    initialize() {
+    async init() {
+        this.initTiles();
+        this.loadLocations();
+    }
+
+    initTiles() {
         for (let y = 0; y < this.height; y++) {
             this.tiles[y] = [];
             for (let x = 0; x < this.width; x++) {
@@ -18,28 +24,28 @@ export class WorldMap {
         }
     }
 
-    setTile(x, y, type, location) {
-        if (this.isValidCoordinate(x, y)) {
-            this.tiles[y][x] = { type, location };
-        }
-    }
-
-    getTile(x, y) {
-        if (this.isValidCoordinate(x, y)) {
-            return this.tiles[y][x];
-        }
-        return null;
-    }
-
-    isValidCoordinate(x, y) {
-        return x >= 0 && x < this.width && y >= 0 && y < this.height;
-    }
-
-    populateFromLocations(locations) {
-        for (const [key, loc] of Object.entries(locations)) {
-            if (loc.x !== undefined && loc.y !== undefined) {
-                this.setTile(loc.x, loc.y, loc.type, key);
+    loadLocations() {
+        for (const [id, data] of Object.entries(LOCATIONS_DATA)) {
+            const location = new Location({ id, ...data });
+            this.locations.set(id, location);
+            
+            if (location.x !== undefined && location.y !== undefined) {
+                this.tiles[location.y][location.x] = {
+                    type: location.type,
+                    locationId: id
+                };
             }
         }
+    }
+
+    getLocation(id) {
+        return this.locations.get(id);
+    }
+
+    getTileAt(x, y) {
+        if (x < 0 || x >= this.width || y < 0 || y >= this.height) {
+            return null;
+        }
+        return this.tiles[y][x];
     }
 }
