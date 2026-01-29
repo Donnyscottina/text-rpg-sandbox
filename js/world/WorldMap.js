@@ -1,15 +1,21 @@
-/**
- * WorldMap - класс для управления картой мира
- */
+// js/world/WorldMap.js - Карта мира
+import { Location } from './Location.js';
+import { LOCATIONS_DATA } from '../config/locationsData.js';
+
 export class WorldMap {
-    constructor(width = 10, height = 10) {
-        this.width = width;
-        this.height = height;
+    constructor() {
+        this.width = 10;
+        this.height = 10;
         this.tiles = [];
-        this.initialize();
+        this.locations = new Map();
     }
 
-    initialize() {
+    async init() {
+        this.initTiles();
+        this.loadLocations();
+    }
+
+    initTiles() {
         for (let y = 0; y < this.height; y++) {
             this.tiles[y] = [];
             for (let x = 0; x < this.width; x++) {
@@ -18,28 +24,68 @@ export class WorldMap {
         }
     }
 
-    setTile(x, y, type, location) {
-        if (this.isValidCoordinate(x, y)) {
-            this.tiles[y][x] = { type, location };
-        }
+    loadLocations() {
+        Object.entries(LOCATIONS_DATA).forEach(([id, data]) => {
+            const location = new Location({
+                id: id,
+                ...data
+            });
+            
+            this.locations.set(id, location);
+            
+            // Устанавливаем тайл на карте
+            if (data.x !== undefined && data.y !== undefined) {
+                this.tiles[data.y][data.x] = {
+                    type: data.type,
+                    locationId: id
+                };
+            }
+        });
+    }
+
+    getLocation(id) {
+        return this.locations.get(id);
     }
 
     getTile(x, y) {
-        if (this.isValidCoordinate(x, y)) {
-            return this.tiles[y][x];
+        if (y < 0 || y >= this.height || x < 0 || x >= this.width) {
+            return null;
         }
-        return null;
+        return this.tiles[y][x];
     }
 
-    isValidCoordinate(x, y) {
-        return x >= 0 && x < this.width && y >= 0 && y < this.height;
+    getTiles() {
+        return this.tiles;
     }
 
-    populateFromLocations(locations) {
-        for (const [key, loc] of Object.entries(locations)) {
-            if (loc.x !== undefined && loc.y !== undefined) {
-                this.setTile(loc.x, loc.y, loc.type, key);
-            }
+    getWidth() {
+        return this.width;
+    }
+
+    getHeight() {
+        return this.height;
+    }
+
+    serialize() {
+        const locationsState = {};
+        
+        this.locations.forEach((location, id) => {
+            locationsState[id] = location.serialize();
+        });
+        
+        return {
+            locationsState: locationsState
+        };
+    }
+
+    deserialize(data) {
+        if (data.locationsState) {
+            Object.entries(data.locationsState).forEach(([id, state]) => {
+                const location = this.locations.get(id);
+                if (location) {
+                    location.deserialize(state);
+                }
+            });
         }
     }
 }
