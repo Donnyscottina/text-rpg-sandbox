@@ -1,61 +1,100 @@
 /**
- * Player - класс для управления игроком
+ * Player - класс игрока
  */
-export class Player {
-    constructor(gameState) {
-        this.state = gameState;
-    }
+import { Character } from './Character.js';
 
-    takeDamage(amount) {
-        const newHp = Math.max(0, this.state.player.hp - amount);
-        this.state.updatePlayer({ hp: newHp });
-        return newHp === 0;
-    }
-
-    heal(amount) {
-        const newHp = Math.min(this.state.player.maxHp, this.state.player.hp + amount);
-        this.state.updatePlayer({ hp: newHp });
-        return newHp - this.state.player.hp;
-    }
-
-    gainXP(amount) {
-        const newXp = this.state.player.xp + amount;
-        this.state.updatePlayer({ xp: newXp });
+export class Player extends Character {
+    constructor(config = {}) {
+        super(config);
         
-        if (newXp >= this.state.player.xpNeeded) {
+        this.gold = config.gold || 100;
+        this.location = config.location || 'town_square';
+        this.position = {
+            x: config.x || 5,
+            y: config.y || 5
+        };
+    }
+
+    /**
+     * Добавление опыта
+     */
+    addExperience(amount) {
+        this.stats.xp += amount;
+        const levelsGained = [];
+        
+        while (this.stats.xp >= this.stats.xpNeeded) {
             this.levelUp();
+            levelsGained.push(this.stats.level);
         }
+        
+        return levelsGained;
     }
 
+    /**
+     * Повышение уровня
+     */
     levelUp() {
-        const player = this.state.player;
-        this.state.updatePlayer({
-            level: player.level + 1,
-            xp: 0,
-            xpNeeded: Math.floor(player.xpNeeded * 1.5),
-            maxHp: player.maxHp + 20,
-            hp: player.maxHp + 20,
-            maxMp: player.maxMp + 10,
-            mp: player.maxMp + 10,
-            attack: player.attack + 5,
-            defense: player.defense + 2
-        });
-        this.state.emit('player:levelup', this.state.player);
+        this.stats.level++;
+        this.stats.xp = 0;
+        this.stats.xpNeeded = Math.floor(this.stats.xpNeeded * 1.5);
+        this.stats.maxHp += 20;
+        this.stats.maxMp += 10;
+        this.stats.attack += 5;
+        this.stats.defense += 2;
+        this.fullRestore();
     }
 
+    /**
+     * Добавление золота
+     */
     addGold(amount) {
-        this.state.updatePlayer({ gold: this.state.player.gold + amount });
+        this.gold += amount;
     }
 
-    moveTo(x, y, location) {
-        this.state.updatePlayer({ x, y, location });
-        this.state.emit('player:moved', { x, y, location });
+    /**
+     * Израсходование золота
+     */
+    spendGold(amount) {
+        if (this.gold >= amount) {
+            this.gold -= amount;
+            return true;
+        }
+        return false;
     }
 
-    rest() {
-        this.state.updatePlayer({
-            hp: this.state.player.maxHp,
-            mp: this.state.player.maxMp
+    /**
+     * Перемещение
+     */
+    moveTo(location, x, y) {
+        this.location = location;
+        if (x !== undefined) this.position.x = x;
+        if (y !== undefined) this.position.y = y;
+    }
+
+    /**
+     * Сериализация
+     */
+    serialize() {
+        return {
+            ...super.serialize(),
+            gold: this.gold,
+            location: this.location,
+            position: { ...this.position }
+        };
+    }
+
+    /**
+     * Десериализация
+     */
+    static deserialize(data) {
+        return new Player({
+            id: data.id,
+            name: data.name,
+            ...data.stats,
+            gold: data.gold,
+            location: data.location,
+            x: data.position.x,
+            y: data.position.y
         });
     }
 }
